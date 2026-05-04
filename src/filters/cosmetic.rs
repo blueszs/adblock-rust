@@ -830,13 +830,22 @@ mod css_validation {
     }
 
     pub fn is_valid_css_style(style: &str) -> bool {
+        use regex::{Regex, RegexBuilder};
+        use std::sync::LazyLock;
+        static RE_URL_DIRECTIVE: LazyLock<Regex> = LazyLock::new(|| {
+            RegexBuilder::new(r"url\(")
+                .case_insensitive(true)
+                .build()
+                .unwrap()
+        });
+
         if style.contains('\\') {
             return false;
         }
-        if style.contains("url(") {
+        if style.contains("/*") {
             return false;
         }
-        if style.contains("/*") {
+        if RE_URL_DIRECTIVE.is_match(style) {
             return false;
         }
         true
