@@ -1262,5 +1262,12 @@ mod css_validation_tests {
         assert!(!is_valid_css_style(r#"background: url(https://evil.com)"#));
         assert!(!is_valid_css_style(r#"background: UrL(https://evil.com)"#));
         assert!(!is_valid_css_style(r#"URL(https://evil.com)"#));
+        assert!(!is_valid_css_style(
+            r#"background: image-set(https://evil.com)"#
+        ));
+        assert!(!is_valid_css_style(
+            r#"background: iMaGE-SeT(https://evil.com)"#
+        ));
+        assert!(!is_valid_css_style(r#"IMAGE-SET(https://evil.com)"#));
     }
 }
