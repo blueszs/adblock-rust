@@ -297,6 +297,7 @@ fn current_memory_usage_config() -> Criterion<MemoryAllocated> {
         .sample_size(10)
         .measurement_time(std::time::Duration::from_secs(1))
         .with_measurement(MemoryAllocated::Current)
+        .without_plots()
 }
 
 fn max_memory_usage_config() -> Criterion<MemoryAllocated> {
@@ -304,6 +305,7 @@ fn max_memory_usage_config() -> Criterion<MemoryAllocated> {
         .sample_size(10)
         .measurement_time(std::time::Duration::from_secs(1))
         .with_measurement(MemoryAllocated::Max)
+        .without_plots()
 }
 
 fn allocations_count_config() -> Criterion<MemoryAllocated> {
@@ -311,6 +313,7 @@ fn allocations_count_config() -> Criterion<MemoryAllocated> {
         .sample_size(10)
         .measurement_time(std::time::Duration::from_secs(1))
         .with_measurement(MemoryAllocated::AllocCount)
+        .without_plots()
 }
 
 criterion_group!(name = current_memory_usage_benches; config = current_memory_usage_config(); targets = bench_current_memory_usage);
