@@ -856,6 +856,102 @@ mod parse_tests {
         let rule = parse_cf("test.com#@#+js(nowebrtc.js)").unwrap();
         assert!(rule.hidden_generic_rule().is_none());
     }
+
+    #[test]
+    fn abp_style_injection() {
+        check_parse_result(
+            "example.com###remove-id {remove: true;}",
+            CosmeticFilterBreakdown {
+                hostnames: sort_hash_domains(vec!["example.com"]),
+                selector: SelectorType::PlainCss("#remove-id".to_string()),
+                action: Some(CosmeticFilterAction::Remove),
+                ..Default::default()
+            },
+        );
+        check_parse_result(
+            r#"example.com##div[style*="width: 45px;"] {remove: true;}"#,
+            CosmeticFilterBreakdown {
+                hostnames: sort_hash_domains(vec!["example.com"]),
+                selector: SelectorType::PlainCss(r#"div[style*="width: 45px;"]"#.to_string()),
+                action: Some(CosmeticFilterAction::Remove),
+                ..Default::default()
+            },
+        );
+        check_parse_result(
+            r#"chip.de##.ft-charts-main > div:not(.List):not(.caps) {remove:true;}"#,
+            CosmeticFilterBreakdown {
+                hostnames: sort_hash_domains(vec!["chip.de"]),
+                selector: SelectorType::PlainCss(
+                    r#".ft-charts-main > div:not(.List):not(.caps)"#.to_string(),
+                ),
+                action: Some(CosmeticFilterAction::Remove),
+                ..Default::default()
+            },
+        );
+        check_parse_result(
+            "example.com###inline-css-id {background-color: #0dc74b;}",
+            CosmeticFilterBreakdown {
+                hostnames: sort_hash_domains(vec!["example.com"]),
+                selector: SelectorType::PlainCss("#inline-css-id".to_string()),
+                action: Some(CosmeticFilterAction::Style(
+                    "background-color: #0dc74b !important;".into(),
+                )),
+                ..Default::default()
+            },
+        );
+        check_parse_result(
+            "example.com##.ad {display: none !important;}",
+            CosmeticFilterBreakdown {
+                hostnames: sort_hash_domains(vec!["example.com"]),
+                selector: SelectorType::PlainCss(".ad".to_string()),
+                action: None,
+                ..Default::default()
+            },
+        );
+        assert!(parse_cf("example.com##.ad {remove: false}").is_err());
+        #[cfg(feature = "css-validation")]
+        assert!(parse_cf("example.com##.ad { background: url(https://evil.com) }").is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "css-validation")]
+    fn abp_style_injection_extended() {
+        let rule = parse_cf("example.com#?#div:has(>div>span.remove-has) {remove: true;}").unwrap();
+        assert_eq!(rule.action, Some(CosmeticFilterAction::Remove));
+        assert_eq!(
+            rule.plain_css_selector(),
+            Some("div:has(>div>span.remove-has)")
+        );
+
+        let rule =
+            parse_cf("example.com#?#span:has-text(remove-has-text) {remove: true;}").unwrap();
+        assert_eq!(rule.action, Some(CosmeticFilterAction::Remove));
+        assert_eq!(rule.selector.len(), 2);
+
+        let rule = parse_cf("example.com#?##span-inline-css {background-color: #0dc74b;}").unwrap();
+        assert_eq!(
+            rule.action,
+            Some(CosmeticFilterAction::Style(
+                "background-color: #0dc74b !important;".into()
+            ))
+        );
+        assert_eq!(rule.plain_css_selector(), Some("#span-inline-css"));
+
+        let rule = parse_cf(
+            "example.com#?#div:-abp-has(>div>span.inline-css-abp-has) {background-color: #0dc74b;}",
+        )
+        .unwrap();
+        assert_eq!(
+            rule.action,
+            Some(CosmeticFilterAction::Style(
+                "background-color: #0dc74b !important;".into()
+            ))
+        );
+        assert_eq!(
+            rule.plain_css_selector(),
+            Some("div:has(>div>span.inline-css-abp-has)")
+        );
+    }
 }
 
 #[cfg(test)]
