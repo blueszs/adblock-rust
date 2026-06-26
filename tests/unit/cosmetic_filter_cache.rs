@@ -307,6 +307,39 @@ mod cosmetic_cache_tests {
     }
 
     #[test]
+    fn abp_style_injection_remove() {
+        let cfcache = cache_from_rules(vec![
+            "example.com##.element {remove: true;}",
+            r#"chip.de##.ft-charts-main > div:not(.List):not(.caps) {remove:true;}"#,
+        ]);
+        let resources = ResourceStorage::default();
+
+        let out = cfcache.hostname_cosmetic_resources(&resources, "example.com", false);
+        let mut expected = UrlSpecificResources::empty();
+        expected.procedural_actions.insert(
+            serde_json::to_string(&ProceduralOrActionFilter {
+                selector: vec![CosmeticFilterOperator::CssSelector(".element".to_string())],
+                action: Some(CosmeticFilterAction::Remove),
+            })
+            .unwrap(),
+        );
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_cosmetic_resources(&resources, "chip.de", false);
+        expected.procedural_actions.clear();
+        expected.procedural_actions.insert(
+            serde_json::to_string(&ProceduralOrActionFilter {
+                selector: vec![CosmeticFilterOperator::CssSelector(
+                    r#".ft-charts-main > div:not(.List):not(.caps)"#.to_string(),
+                )],
+                action: Some(CosmeticFilterAction::Remove),
+            })
+            .unwrap(),
+        );
+        assert_eq!(out, expected);
+    }
+
+    #[test]
     fn remove_attr_exceptions() {
         let cfcache = cache_from_rules(vec![
             "example.com,~sub.example.com##.element:remove-attr(style)",

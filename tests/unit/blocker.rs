@@ -1407,7 +1407,7 @@ mod legacy_rule_parsing_tests {
     const EASY_LIST: ListCounts = ListCounts {
         filters: 60368 - 692,
         cosmetic_filters: if cfg!(feature = "css-validation") {
-            24060
+            24072
         } else {
             24078
         },
