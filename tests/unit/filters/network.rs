@@ -745,6 +745,47 @@ mod parse_tests {
     }
 
     #[test]
+    fn parses_rewrite() {
+        // `rewrite=X` must parse identically to `redirect=X`.
+        {
+            let rewrite =
+                NetworkFilter::parse("||foo.com$rewrite=noopjs", true, Default::default()).unwrap();
+            let redirect =
+                NetworkFilter::parse("||foo.com$redirect=noopjs", true, Default::default())
+                    .unwrap();
+            assert_eq!(rewrite.mask, redirect.mask);
+            assert_eq!(rewrite.modifier_option, redirect.modifier_option);
+        }
+        // the `abp-resource:` prefix is preserved verbatim, not stripped
+        {
+            let filter = NetworkFilter::parse(
+                "||foo.com$rewrite=abp-resource:blank-js",
+                true,
+                Default::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                filter.modifier_option,
+                Some(String::from("abp-resource:blank-js"))
+            );
+        }
+        // parses ~rewrite
+        {
+            let filter = NetworkFilter::parse("||foo.com$~rewrite", true, Default::default());
+            assert_eq!(filter.err(), Some(NetworkFilterError::NegatedRedirection));
+        }
+        // parses rewrite without a value
+        {
+            let filter = NetworkFilter::parse("||foo.com$rewrite", true, Default::default());
+            assert_eq!(filter.err(), Some(NetworkFilterError::EmptyRedirection));
+        }
+        {
+            let filter = NetworkFilter::parse("||foo.com$rewrite=", true, Default::default());
+            assert_eq!(filter.err(), Some(NetworkFilterError::EmptyRedirection));
+        }
+    }
+
+    #[test]
     fn parses_removeparam() {
         {
             let filter = NetworkFilter::parse("||foo.com^$removeparam", true, Default::default());
