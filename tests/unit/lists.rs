@@ -197,11 +197,8 @@ mod tests {
     #[test]
     fn parse_filter_failed_fuzz_4() {
         // \\##+js(,\xdd\x8d
-        let parsed = parse_filter(
-            &String::from_utf8(vec![92, 35, 35, 43, 106, 115, 40, 44, 221, 141]).unwrap(),
-            true,
-            Default::default(),
-        );
+        let rule = String::from_utf8(vec![92, 35, 35, 43, 106, 115, 40, 44, 221, 141]).unwrap();
+        let parsed = parse_filter(&rule, true, Default::default());
         #[cfg(feature = "css-validation")]
         assert!(parsed.is_err());
         #[cfg(not(feature = "css-validation"))]
@@ -290,10 +287,15 @@ mod tests {
             "! Version: 20220411",
             "",
             "! => https://austinhuang.me/0131-block-list/list.txt",
-        ];
+        ]
+        .join("\n");
 
         let mut filter_set = FilterSet::new(false);
-        let metadata = filter_set.add_filters(list, ParseOptions::default());
+        let AddedFiltersRecord {
+            source_index,
+            metadata,
+        } = filter_set.add_filter_list(list, ParseOptions::default());
+        assert_eq!(source_index, 0);
 
         assert_eq!(metadata.title, Some("0131 Block List".to_string()));
         assert_eq!(
@@ -319,10 +321,15 @@ mod tests {
             "! Last modified: 09/03/2021",
             "! Expires: 7 days (update frequency)",
             "! Homepage: https://www.haopro.net/",
-        ];
+        ]
+        .join("\n");
 
         let mut filter_set = FilterSet::new(false);
-        let metadata = filter_set.add_filters(list, ParseOptions::default());
+        let AddedFiltersRecord {
+            source_index,
+            metadata,
+        } = filter_set.add_filter_list(list, ParseOptions::default());
+        assert_eq!(source_index, 0);
 
         assert_eq!(metadata.title, Some("ABPVN Advanced".to_string()));
         assert_eq!(
@@ -392,18 +399,18 @@ mod tests {
         {
             let input = "example.com##.selector";
             let result = parse_filter(input, true, Default::default());
-            assert!(matches!(result, Ok(ParsedFilter::Cosmetic(..))));
+            assert!(matches!(result, Ok(ParsedLine::Cosmetic(..))));
         }
         {
             let input = "9gag.com#?#article:-abp-has(.promoted)";
             let result = parse_filter(input, true, Default::default());
-            assert!(matches!(result, Ok(ParsedFilter::Cosmetic(..))));
+            assert!(matches!(result, Ok(ParsedLine::Cosmetic(..))));
         }
         #[cfg(feature = "css-validation")]
         {
             let input = "sportowefakty.wp.pl#@?#body > [class]:not([id]):matches-css(position: fixed):matches-css(top: 0px)";
             let result = parse_filter(input, true, Default::default());
-            assert!(matches!(result, Ok(ParsedFilter::Cosmetic(..))));
+            assert!(matches!(result, Ok(ParsedLine::Cosmetic(..))));
         }
         {
             let input =

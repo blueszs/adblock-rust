@@ -10,14 +10,15 @@ fn check_simple_use() {
         "-advertisement/script.",
     ];
 
-    let engine = Engine::from_rules(rules, Default::default());
+    let engine = Engine::new_with_list_text(rules.join("\n"));
 
     let request = Request::new(
         "http://example.com/-advertisement-icon.",
         "http://example.com/helloworld",
         "image",
+        "",
     )
     .unwrap();
     let blocker_result = engine.check_network_request(&request);
-    assert!(blocker_result.matched);
+    assert!(blocker_result.should_block());
 }

@@ -14,16 +14,16 @@ fn main() {
 
     // Deserialize
     engine.deserialize(&buffer).unwrap();
-    engine.use_tags(&["twitter-embeds"]);
 
     let request = Request::new(
         "https://platform.twitter.com/widgets.js",
         "https://fmarier.github.io/brave-testing/social-widgets.html",
         "script",
+        "",
     )
     .unwrap();
     let checked = engine.check_network_request(&request);
-    assert!(checked.filter.is_some());
+    assert!(!checked.should_block());
     assert!(checked.exception.is_some());
     println!("All good: {checked:?}");
 }

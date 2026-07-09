@@ -40,9 +40,9 @@ fn build_resources_from_filters(filters: &[String]) -> Vec<Resource> {
             let redirect = f.modifier_option.unwrap();
 
             Resource {
-                name: redirect.to_owned(),
+                name: redirect.to_string(),
                 aliases: vec![],
-                kind: ResourceType::Mime(MimeType::from_extension(&redirect)),
+                kind: ResourceType::Mime(MimeType::from_extension(redirect)),
                 content: BASE64_STANDARD.encode(redirect),
                 dependencies: vec![],
                 permission: Default::default(),
@@ -59,11 +59,9 @@ fn check_filter_matching() {
 
     assert!(!requests.is_empty(), "List of parsed request info is empty");
 
-    let opts = ParseOptions::default();
-
     for req in requests {
         for filter in req.filters {
-            let network_filter_res = NetworkFilter::parse(&filter, true, opts);
+            let network_filter_res = NetworkFilter::parse(&filter, true, ParseOptions::default());
             assert!(
                 network_filter_res.is_ok(),
                 "Could not parse filter {filter}"
@@ -77,22 +75,24 @@ fn check_filter_matching() {
                     .set(NetworkFilterMask::IS_EXCEPTION, false);
                 filters.push(original_filter);
             }
-            let filter_set = adblock::FilterSet::new_with_rules(filters, vec![], true);
-            let engine = adblock::Engine::from_filter_set(filter_set, true);
+            let engine = adblock::Engine::new_with_parsed_rules(filters, vec![]);
 
-            let request_res = Request::new(&req.url, &req.sourceUrl, &req.r#type);
+            let request_res = Request::new(&req.url, &req.sourceUrl, &req.r#type, "");
             // The dataset has cases where URL is set to just "http://" or "https://", which we do not support
             if let Ok(request) = request_res {
                 let result = engine.check_network_request(&request);
                 if !network_filter.is_exception() {
                     assert!(
-                        result.matched,
+                        result.should_block(),
                         "Expected {} to match {} at {}, typed {}",
-                        filter, req.url, req.sourceUrl, req.r#type
+                        filter,
+                        req.url,
+                        req.sourceUrl,
+                        req.r#type
                     );
                 } else {
                     assert!(
-                        !result.matched && result.exception.is_some(),
+                        !result.should_block() && result.exception.is_some(),
                         "Expected {} exception to match {} at {}, typed {}",
                         filter,
                         req.url,
@@ -120,33 +120,38 @@ fn check_engine_matching() {
             continue;
         }
         for filter in req.filters {
-            let opts = ParseOptions::default();
-            let mut engine = Engine::from_rules_debug(std::slice::from_ref(&filter), opts);
+            let mut engine = Engine::new_with_list_text(filter.clone());
             let resources = build_resources_from_filters(std::slice::from_ref(&filter));
             engine.use_resources(resources);
 
-            let network_filter_res = NetworkFilter::parse(&filter, true, opts);
+            let network_filter_res = NetworkFilter::parse(&filter, true, ParseOptions::default());
             assert!(
                 network_filter_res.is_ok(),
                 "Could not parse filter {filter}"
             );
             let network_filter = network_filter_res.unwrap();
 
-            let request = Request::new(&req.url, &req.sourceUrl, &req.r#type).unwrap();
+            let request = Request::new(&req.url, &req.sourceUrl, &req.r#type, "").unwrap();
             let result = engine.check_network_request(&request);
 
             if network_filter.is_exception() {
                 assert!(
-                    !result.matched,
+                    !result.should_block(),
                     "Expected {} to NOT match {} at {}, typed {}",
-                    filter, req.url, req.sourceUrl, req.r#type
+                    filter,
+                    req.url,
+                    req.sourceUrl,
+                    req.r#type
                 );
                 // assert!(result.exception.is_some(), "Expected exception {} to match {} at {}, typed {}", filter, req.url, req.sourceUrl, req.r#type);
             } else {
                 assert!(
-                    result.matched,
+                    result.should_block(),
                     "Expected {} to match {} at {}, typed {}",
-                    filter, req.url, req.sourceUrl, req.r#type
+                    filter,
+                    req.url,
+                    req.sourceUrl,
+                    req.r#type
                 );
             }
 
@@ -186,15 +191,15 @@ fn check_rule_matching_browserlike() {
 
     impl From<&TestRequest> for Request {
         fn from(v: &TestRequest) -> Self {
-            Request::new(&v.url, &v.frameUrl, &v.cpt).unwrap()
+            Request::new(&v.url, &v.frameUrl, &v.cpt, "").unwrap()
         }
     }
 
     fn load_requests() -> Vec<TestRequest> {
-        let requests_str = rules_from_lists(&["data/requests.json"]);
+        let requests_str = rules_from_lists(["data/requests.json"]);
         requests_str
-            .into_iter()
-            .filter_map(|r| serde_json::from_str(&r).ok())
+            .lines()
+            .filter_map(|r| serde_json::from_str(r).ok())
             .collect()
     }
 
@@ -203,7 +208,7 @@ fn check_rule_matching_browserlike() {
         let mut passes = 0;
         for r in requests {
             let req: Request = r.into();
-            if engine.check_network_request(&req).matched {
+            if engine.check_network_request(&req).should_block() {
                 matches += 1;
             } else {
                 passes += 1;
@@ -214,7 +219,7 @@ fn check_rule_matching_browserlike() {
 
     let requests = load_requests();
     let rules = rules_from_lists(&["data/brave/brave-main-list.txt"]);
-    let engine = Engine::from_rules(rules, Default::default());
+    let engine = Engine::new_with_list_text(rules);
     let (blocked, passes) = bench_rule_matching_browserlike(&engine, &requests);
     let msg = "The number of blocked/passed requests has changed. ".to_string()
         + "If this is expected, update the expected values in the test.";

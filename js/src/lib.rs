@@ -1,12 +1,10 @@
-use adblock::lists::{
-    FilterFormat, FilterListMetadata, FilterSet as FilterSetInternal, ParseOptions, RuleTypes,
-};
+use adblock::lists::{FilterFormat, FilterSet as FilterSetInternal, ParseOptions, RuleTypes};
 use adblock::resources::resource_assembler::assemble_web_accessible_resources;
 use adblock::resources::Resource;
 use adblock::Engine as EngineInternal;
 use neon::prelude::*;
 use neon::types::buffer::TypedArray as _;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::cell::RefCell;
 use std::path::Path;
 use std::sync::Mutex;
@@ -53,9 +51,29 @@ mod json_ffi {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct EngineOptions {
-    pub optimize: Option<bool>,
+fn console_warn<'a, C: Context<'a>>(cx: &mut C, message: &str) -> NeonResult<()> {
+    let console: Handle<JsObject> = cx.global().get(cx, "console")?;
+    let warn: Handle<JsFunction> = console.get(cx, "warn")?;
+    let msg = JsString::new(cx, message).upcast::<JsValue>();
+    warn.call(cx, console, [msg])?;
+    Ok(())
+}
+
+/// Accepts a single filter list string, or a deprecated array of list strings (joined with `\n`).
+fn filter_rules_from_js<'a, C: Context<'a>>(
+    cx: &mut C,
+    input: Handle<JsValue>,
+) -> NeonResult<String> {
+    if input.downcast::<JsArray, _>(cx).is_ok() {
+        console_warn(
+            cx,
+            "FilterSet.addFilters: passing an array of strings is deprecated; \
+             pass a single newline-separated filter list string instead.",
+        )?;
+        let parts: Vec<String> = json_ffi::from_js(cx, input)?;
+        return Ok(parts.join("\n"));
+    }
+    json_ffi::from_js(cx, input)
 }
 
 #[derive(Default)]
@@ -64,16 +82,10 @@ impl FilterSet {
     fn new(debug: bool) -> Self {
         Self(RefCell::new(FilterSetInternal::new(debug)))
     }
-    fn add_filters(&self, rules: &[String], opts: ParseOptions) -> FilterListMetadata {
-        self.0.borrow_mut().add_filters(rules, opts)
+    fn add_filters(&self, rules: String, opts: ParseOptions) -> adblock::lists::AddedFiltersRecord {
+        self.0.borrow_mut().add_filter_list(rules, opts)
     }
-    fn add_filter(
-        &self,
-        filter: &str,
-        opts: ParseOptions,
-    ) -> Result<(), adblock::lists::FilterParseError> {
-        self.0.borrow_mut().add_filter(filter, opts)
-    }
+
     fn into_content_blocking(
         &self,
     ) -> Result<(Vec<adblock::content_blocking::CbRule>, Vec<String>), ()> {
@@ -99,7 +111,6 @@ fn create_filter_set(mut cx: FunctionContext) -> JsResult<JsBox<FilterSet>> {
 fn filter_set_add_filters(mut cx: FunctionContext) -> JsResult<JsValue> {
     let this = cx.argument::<JsBox<FilterSet>>(0)?;
 
-    // Take the first argument, which must be an array
     let rules_handle: Handle<JsValue> = cx.argument(1)?;
     // Second argument is optional parse options. All fields are optional. ParseOptions::default()
     // if unspecified.
@@ -108,25 +119,11 @@ fn filter_set_add_filters(mut cx: FunctionContext) -> JsResult<JsValue> {
         None => ParseOptions::default(),
     };
 
-    let rules: Vec<String> = json_ffi::from_js(&mut cx, rules_handle)?;
+    let rules: String = filter_rules_from_js(&mut cx, rules_handle)?;
 
-    let metadata = this.add_filters(&rules, parse_opts);
+    let metadata = this.add_filters(rules, parse_opts);
 
     json_ffi::to_js(&mut cx, &metadata)
-}
-
-fn filter_set_add_filter(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-    let this = cx.argument::<JsBox<FilterSet>>(0)?;
-
-    let filter: String = cx.argument::<JsString>(1)?.value(&mut cx);
-    let parse_opts = match cx.argument_opt(2) {
-        Some(parse_opts_arg) => json_ffi::from_js(&mut cx, parse_opts_arg)?,
-        None => ParseOptions::default(),
-    };
-
-    let ok = this.add_filter(&filter, parse_opts).is_ok();
-    // Return true/false depending on whether or not the filter could be added
-    Ok(JsBoolean::new(&mut cx, ok))
 }
 
 #[derive(Serialize)]
@@ -162,19 +159,19 @@ fn engine_constructor(mut cx: FunctionContext) -> JsResult<JsBox<Engine>> {
     let rules = cx.argument::<JsBox<FilterSet>>(0)?;
     let rules = rules.0.borrow().clone();
 
-    let engine_internal = match cx.argument_opt(1) {
-        Some(arg) => {
-            let optimize = match arg.downcast::<JsBoolean, _>(&mut cx) {
-                Ok(b) => b.value(&mut cx),
-                Err(_) => {
-                    let config = json_ffi::from_js::<_, EngineOptions>(&mut cx, arg)?;
-                    config.optimize.unwrap_or(true)
-                }
-            };
-            EngineInternal::from_filter_set(rules, optimize)
+    // The legacy second argument (optimize boolean or options object) is no longer used:
+    // optimization is always enabled via `new_with_filter_set`. Warn if a caller still passes it.
+    if let Some(arg) = cx.argument_opt(1) {
+        if !arg.is_a::<JsNull, _>(&mut cx) && !arg.is_a::<JsUndefined, _>(&mut cx) {
+            console_warn(
+                &mut cx,
+                "Engine constructor: the second argument is deprecated and ignored; \
+                 optimization is always enabled.",
+            )?;
         }
-        None => EngineInternal::from_filter_set(rules, true),
-    };
+    }
+
+    let engine_internal = EngineInternal::new_with_filter_set(rules);
     Ok(cx.boxed(Engine(Mutex::new(engine_internal))))
 }
 
@@ -185,17 +182,47 @@ fn engine_check(mut cx: FunctionContext) -> JsResult<JsValue> {
     let source_url: String = cx.argument::<JsString>(2)?.value(&mut cx);
     let request_type: String = cx.argument::<JsString>(3)?.value(&mut cx);
 
-    let debug = match cx.argument_opt(4) {
+    // Optional trailing args:
+    // - legacy: `(debug: boolean)`
+    // - new: `(method: string, debug?: boolean)` — empty method string means unspecified
+    let (method, debug) = match cx.argument_opt(4) {
+        None => (String::new(), false),
         Some(arg) => {
-            // Throw if the argument exists and it cannot be downcasted to a boolean
-            arg.downcast::<JsBoolean, _>(&mut cx)
-                .or_throw(&mut cx)?
-                .value(&mut cx)
+            if arg.is_a::<JsNull, _>(&mut cx) || arg.is_a::<JsUndefined, _>(&mut cx) {
+                let debug = match cx.argument_opt(5) {
+                    Some(debug_arg) => debug_arg
+                        .downcast::<JsBoolean, _>(&mut cx)
+                        .or_throw(&mut cx)?
+                        .value(&mut cx),
+                    None => false,
+                };
+                (String::new(), debug)
+            } else if let Ok(debug) = arg.downcast::<JsBoolean, _>(&mut cx) {
+                console_warn(
+                    &mut cx,
+                    "Engine.check: passing debug as the 4th boolean argument is deprecated; \
+                     pass an HTTP method string as the 4th argument (use \"\" if unspecified) \
+                     and debug as an optional 5th boolean instead.",
+                )?;
+                (String::new(), debug.value(&mut cx))
+            } else if let Ok(method) = arg.downcast::<JsString, _>(&mut cx) {
+                let debug = match cx.argument_opt(5) {
+                    Some(debug_arg) => debug_arg
+                        .downcast::<JsBoolean, _>(&mut cx)
+                        .or_throw(&mut cx)?
+                        .value(&mut cx),
+                    None => false,
+                };
+                (method.value(&mut cx), debug)
+            } else {
+                cx.throw_error(
+                    "expected boolean (debug), string (method), null, or undefined as 4th argument",
+                )?
+            }
         }
-        None => false,
     };
 
-    let request = match adblock::request::Request::new(&url, &source_url, &request_type) {
+    let request = match adblock::request::Request::new(&url, &source_url, &request_type, &method) {
         Ok(r) => r,
         Err(e) => cx.throw_error(e.to_string())?,
     };
@@ -205,10 +232,16 @@ fn engine_check(mut cx: FunctionContext) -> JsResult<JsValue> {
     } else {
         cx.throw_error("Failed to acquire lock on engine")?
     };
+
+    let should_block = cx.boolean(result.should_block()).upcast::<JsValue>();
+
     if debug {
-        json_ffi::to_js(&mut cx, &result)
+        let jsonvalue = json_ffi::to_js(&mut cx, &result)?;
+        let obj = jsonvalue.downcast_or_throw::<JsObject, _>(&mut cx)?;
+        obj.set(&mut cx, "should_block", should_block)?;
+        Ok(obj.upcast::<JsValue>())
     } else {
-        Ok(cx.boolean(result.matched).upcast())
+        Ok(should_block)
     }
 }
 
@@ -273,11 +306,17 @@ fn engine_deserialize(mut cx: FunctionContext) -> JsResult<JsNull> {
 }
 
 fn engine_enable_tag(mut cx: FunctionContext) -> JsResult<JsNull> {
+    console_warn(
+        &mut cx,
+        "Engine.enableTag: tagged filters are deprecated; \
+         rebuild the engine with or without the relevant filters instead.",
+    )?;
     let this = cx.argument::<JsBox<Engine>>(0)?;
 
     let tag: String = cx.argument::<JsString>(1)?.value(&mut cx);
 
     if let Ok(mut engine) = this.0.lock() {
+        #[allow(deprecated)]
         engine.enable_tags(&[&tag])
     } else {
         cx.throw_error("Failed to acquire lock on engine")?
@@ -300,11 +339,17 @@ fn engine_use_resources(mut cx: FunctionContext) -> JsResult<JsNull> {
 }
 
 fn engine_tag_exists(mut cx: FunctionContext) -> JsResult<JsBoolean> {
+    console_warn(
+        &mut cx,
+        "Engine.tagExists: tagged filters are deprecated; \
+         rebuild the engine with or without the relevant filters instead.",
+    )?;
     let this = cx.argument::<JsBox<Engine>>(0)?;
 
     let tag: String = cx.argument::<JsString>(1)?.value(&mut cx);
 
     let result = if let Ok(engine) = this.0.lock() {
+        #[allow(deprecated)]
         engine.tag_exists(&tag)
     } else {
         cx.throw_error("Failed to acquire lock on engine")?
@@ -313,9 +358,15 @@ fn engine_tag_exists(mut cx: FunctionContext) -> JsResult<JsBoolean> {
 }
 
 fn engine_clear_tags(mut cx: FunctionContext) -> JsResult<JsNull> {
+    console_warn(
+        &mut cx,
+        "Engine.clearTags: tagged filters are deprecated; \
+         rebuild the engine with or without the relevant filters instead.",
+    )?;
     let this = cx.argument::<JsBox<Engine>>(0)?;
 
     if let Ok(mut engine) = this.0.lock() {
+        #[allow(deprecated)]
         engine.use_tags(&[]);
     } else {
         cx.throw_error("Failed to acquire lock on engine")?
@@ -327,7 +378,20 @@ fn validate_request(mut cx: FunctionContext) -> JsResult<JsBoolean> {
     let url: String = cx.argument::<JsString>(0)?.value(&mut cx);
     let source_url: String = cx.argument::<JsString>(1)?.value(&mut cx);
     let request_type: String = cx.argument::<JsString>(2)?.value(&mut cx);
-    let request_ok = adblock::request::Request::new(&url, &source_url, &request_type).is_ok();
+    let method = match cx.argument_opt(3) {
+        None => String::new(),
+        Some(arg) => {
+            if arg.is_a::<JsNull, _>(&mut cx) || arg.is_a::<JsUndefined, _>(&mut cx) {
+                String::new()
+            } else {
+                arg.downcast::<JsString, _>(&mut cx)
+                    .or_throw(&mut cx)?
+                    .value(&mut cx)
+            }
+        }
+    };
+    let request_ok =
+        adblock::request::Request::new(&url, &source_url, &request_type, &method).is_ok();
 
     Ok(cx.boolean(request_ok))
 }
@@ -391,7 +455,6 @@ fn build_rule_types_enum<'a, C: Context<'a>>(cx: &mut C) -> JsResult<'a, JsObjec
 register_module!(mut m, {
     m.export_function("FilterSet_constructor", create_filter_set)?;
     m.export_function("FilterSet_addFilters", filter_set_add_filters)?;
-    m.export_function("FilterSet_addFilter", filter_set_add_filter)?;
     m.export_function(
         "FilterSet_intoContentBlocking",
         filter_set_into_content_blocking,

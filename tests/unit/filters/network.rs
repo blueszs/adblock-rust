@@ -35,18 +35,24 @@ mod parse_tests {
         from_websocket: bool,
         from_xml_http_request: bool,
         from_document: bool,
+        from_get: bool,
+        from_head: bool,
+        from_post: bool,
         match_case: bool,
         third_party: bool,
     }
 
-    impl From<&NetworkFilter> for NetworkFilterBreakdown {
+    impl From<&NetworkFilter<'_>> for NetworkFilterBreakdown {
         fn from(filter: &NetworkFilter) -> NetworkFilterBreakdown {
             NetworkFilterBreakdown {
                 filter: filter.filter.string_view(),
-                hostname: filter.hostname.as_ref().cloned(),
+                hostname: filter.hostname.as_ref().map(|host| host.to_string()),
                 opt_domains: filter.opt_domains.as_ref().cloned(),
                 opt_not_domains: filter.opt_not_domains.as_ref().cloned(),
-                modifier_option: filter.modifier_option.as_ref().cloned(),
+                modifier_option: filter
+                    .modifier_option
+                    .as_ref()
+                    .map(|value| value.to_string()),
 
                 // filter type
                 is_exception: filter.is_exception(),
@@ -73,6 +79,9 @@ mod parse_tests {
                 from_websocket: filter.mask.contains(NetworkFilterMask::FROM_WEBSOCKET),
                 from_xml_http_request: filter.mask.contains(NetworkFilterMask::FROM_XMLHTTPREQUEST),
                 from_document: filter.mask.contains(NetworkFilterMask::FROM_DOCUMENT),
+                from_get: filter.mask.contains(NetworkFilterMask::FROM_GET),
+                from_head: filter.mask.contains(NetworkFilterMask::FROM_HEAD),
+                from_post: filter.mask.contains(NetworkFilterMask::FROM_POST),
                 match_case: filter.match_case(),
                 third_party: filter.third_party(),
             }
@@ -112,9 +121,23 @@ mod parse_tests {
             from_websocket: true,
             from_xml_http_request: true,
             from_document: false,
+            from_get: false,
+            from_head: false,
+            from_post: false,
             match_case: false,
             third_party: true,
         }
+    }
+
+    fn foo_method_breakdown(get: bool, head: bool, post: bool) -> NetworkFilterBreakdown {
+        let mut expected = default_network_filter_breakdown();
+        expected.hostname = Some(String::from("foo"));
+        expected.is_hostname_anchor = true;
+        expected.is_plain = true;
+        expected.from_get = get;
+        expected.from_head = head;
+        expected.from_post = post;
+        expected
     }
 
     #[test]
@@ -587,7 +610,7 @@ mod parse_tests {
                 NetworkFilter::parse(r#"||foo.com$csp=self bar """#, true, Default::default())
                     .unwrap();
             assert!(filter.is_csp());
-            assert_eq!(filter.modifier_option, Some(String::from(r#"self bar """#)));
+            assert_eq!(filter.modifier_option, Some(r#"self bar """#));
         }
         {
             // parses empty CSP
@@ -714,12 +737,12 @@ mod parse_tests {
             let filter =
                 NetworkFilter::parse("||foo.com$redirect=bar.js", true, Default::default())
                     .unwrap();
-            assert_eq!(filter.modifier_option, Some(String::from("bar.js")));
+            assert_eq!(filter.modifier_option, Some("bar.js"));
         }
         {
             let filter =
                 NetworkFilter::parse("$redirect=bar.js", true, Default::default()).unwrap();
-            assert_eq!(filter.modifier_option, Some(String::from("bar.js")));
+            assert_eq!(filter.modifier_option, Some("bar.js"));
         }
         // parses ~redirect
         {
@@ -764,10 +787,7 @@ mod parse_tests {
                 Default::default(),
             )
             .unwrap();
-            assert_eq!(
-                filter.modifier_option,
-                Some(String::from("abp-resource:blank-js"))
-            );
+            assert_eq!(filter.modifier_option, Some("abp-resource:blank-js"));
         }
         // parses ~rewrite
         {
@@ -835,7 +855,7 @@ mod parse_tests {
                 NetworkFilter::parse("||foo.com^$removeparam=test", true, Default::default())
                     .unwrap();
             assert!(filter.is_removeparam());
-            assert_eq!(filter.modifier_option, Some("test".into()));
+            assert_eq!(filter.modifier_option, Some("test"));
         }
     }
 
@@ -1015,7 +1035,7 @@ mod parse_tests {
         {
             let filter = NetworkFilter::parse_hosts_style("example.com", true).unwrap();
             assert!(filter.raw_line.is_some());
-            assert_eq!(*filter.raw_line.clone().unwrap(), "||example.com^");
+            assert_eq!(filter.raw_line.as_deref().unwrap(), "||example.com^");
             let mut defaults = default_network_filter_breakdown();
             defaults.hostname = Some("example.com".to_string());
             defaults.is_plain = true;
@@ -1027,7 +1047,7 @@ mod parse_tests {
         {
             let filter = NetworkFilter::parse_hosts_style("www.example.com", true).unwrap();
             assert!(filter.raw_line.is_some());
-            assert_eq!(*filter.raw_line.clone().unwrap(), "||www.example.com^");
+            assert_eq!(filter.raw_line.as_deref().unwrap(), "||www.example.com^");
             let mut defaults = default_network_filter_breakdown();
             defaults.hostname = Some("www.example.com".to_string());
             defaults.is_plain = true;
@@ -1039,7 +1059,10 @@ mod parse_tests {
         {
             let filter = NetworkFilter::parse_hosts_style("malware.example.com", true).unwrap();
             assert!(filter.raw_line.is_some());
-            assert_eq!(*filter.raw_line.clone().unwrap(), "||malware.example.com^");
+            assert_eq!(
+                filter.raw_line.as_deref().unwrap(),
+                "||malware.example.com^"
+            );
             let mut defaults = default_network_filter_breakdown();
             defaults.hostname = Some("malware.example.com".to_string());
             defaults.is_plain = true;
@@ -1052,7 +1075,7 @@ mod parse_tests {
         {
             let filter = NetworkFilter::parse_hosts_style("Example.COM", true).unwrap();
             assert!(filter.raw_line.is_some());
-            assert_eq!(*filter.raw_line.clone().unwrap(), "||Example.COM^");
+            assert_eq!(filter.raw_line.as_deref().unwrap(), "||Example.COM^");
             let mut defaults = default_network_filter_breakdown();
             defaults.hostname = Some("example.com".to_string());
             defaults.is_plain = true;
@@ -1065,7 +1088,7 @@ mod parse_tests {
         {
             let filter = NetworkFilter::parse_hosts_style("WWW.Example.COM", true).unwrap();
             assert!(filter.raw_line.is_some());
-            assert_eq!(*filter.raw_line.clone().unwrap(), "||WWW.Example.COM^");
+            assert_eq!(filter.raw_line.as_deref().unwrap(), "||WWW.Example.COM^");
             let mut defaults = default_network_filter_breakdown();
             defaults.hostname = Some("www.example.com".to_string());
             defaults.is_plain = true;
@@ -1078,7 +1101,7 @@ mod parse_tests {
         {
             let filter = NetworkFilter::parse_hosts_style("münchen.de", true).unwrap();
             assert!(filter.raw_line.is_some());
-            assert_eq!(*filter.raw_line.clone().unwrap(), "||münchen.de^");
+            assert_eq!(filter.raw_line.as_deref().unwrap(), "||münchen.de^");
             let mut defaults = default_network_filter_breakdown();
             defaults.hostname = Some("xn--mnchen-3ya.de".to_string());
             defaults.is_plain = true;
@@ -1091,7 +1114,7 @@ mod parse_tests {
         {
             let filter = NetworkFilter::parse_hosts_style("www.münchen.de", true).unwrap();
             assert!(filter.raw_line.is_some());
-            assert_eq!(*filter.raw_line.clone().unwrap(), "||www.münchen.de^");
+            assert_eq!(filter.raw_line.as_deref().unwrap(), "||www.münchen.de^");
             let mut defaults = default_network_filter_breakdown();
             defaults.hostname = Some("www.xn--mnchen-3ya.de".to_string());
             defaults.is_plain = true;
@@ -1115,9 +1138,9 @@ mod parse_tests {
         let options = vec!["genericblock", "inline-script", "popunder", "popup", "woot"];
 
         for option in options {
-            let filter =
-                NetworkFilter::parse(&format!("||foo.com${option}"), true, Default::default());
-            assert!(filter.err().is_some());
+            let rule = format!("||foo.com${option}");
+            let filter = NetworkFilter::parse(&rule, true, Default::default());
+            assert!(filter.is_err());
         }
     }
 
@@ -1175,9 +1198,8 @@ mod parse_tests {
         for option in options {
             // positive
             {
-                let filter =
-                    NetworkFilter::parse(&format!("||foo.com${option}"), true, Default::default())
-                        .unwrap();
+                let rule = format!("||foo.com${option}");
+                let filter = NetworkFilter::parse(&rule, true, Default::default()).unwrap();
                 let mut defaults = default_network_filter_breakdown();
                 defaults.hostname = Some(String::from("foo.com"));
                 defaults.is_hostname_anchor = true;
@@ -1189,12 +1211,8 @@ mod parse_tests {
             }
 
             {
-                let filter = NetworkFilter::parse(
-                    &format!("||foo.com$object,{option}"),
-                    true,
-                    Default::default(),
-                )
-                .unwrap();
+                let rule = format!("||foo.com$object,{option}");
+                let filter = NetworkFilter::parse(&rule, true, Default::default()).unwrap();
                 let mut defaults = default_network_filter_breakdown();
                 defaults.hostname = Some(String::from("foo.com"));
                 defaults.is_hostname_anchor = true;
@@ -1207,12 +1225,8 @@ mod parse_tests {
             }
 
             {
-                let filter = NetworkFilter::parse(
-                    &format!("||foo.com$domain=bar.com,{option}"),
-                    true,
-                    Default::default(),
-                )
-                .unwrap();
+                let rule = format!("||foo.com$domain=bar.com,{option}");
+                let filter = NetworkFilter::parse(&rule, true, Default::default()).unwrap();
                 let mut defaults = default_network_filter_breakdown();
                 defaults.hostname = Some(String::from("foo.com"));
                 defaults.is_hostname_anchor = true;
@@ -1226,9 +1240,8 @@ mod parse_tests {
 
             // negative
             {
-                let filter =
-                    NetworkFilter::parse(&format!("||foo.com$~{option}"), true, Default::default())
-                        .unwrap();
+                let rule = format!("||foo.com$~{option}");
+                let filter = NetworkFilter::parse(&rule, true, Default::default()).unwrap();
                 let mut defaults = default_network_filter_breakdown();
                 defaults.hostname = Some(String::from("foo.com"));
                 defaults.is_hostname_anchor = true;
@@ -1240,12 +1253,8 @@ mod parse_tests {
             }
 
             {
-                let filter = NetworkFilter::parse(
-                    &format!("||foo.com${option},~{option}"),
-                    true,
-                    Default::default(),
-                )
-                .unwrap();
+                let rule = format!("||foo.com${option},~{option}");
+                let filter = NetworkFilter::parse(&rule, true, Default::default()).unwrap();
                 let mut defaults = default_network_filter_breakdown();
                 defaults.hostname = Some(String::from("foo.com"));
                 defaults.is_hostname_anchor = true;
@@ -1293,9 +1302,102 @@ mod parse_tests {
         let rule = "||some.primewire.c*/sw$script,1p";
         let filter = NetworkFilter::parse(rule, true, ParseOptions::default()).unwrap();
         let mut tokens_buffer = utils::TokensBuffer::default();
+        assert_eq!(filter.get_tokens(&mut tokens_buffer), FilterTokens::Other);
         assert_eq!(
-            filter.get_tokens(&mut tokens_buffer),
-            FilterTokens::Other(&[utils::fast_hash("some"), utils::fast_hash("primewire")])
+            tokens_buffer.as_slice(),
+            &[utils::fast_hash("some"), utils::fast_hash("primewire")]
         );
+    }
+
+    #[test]
+    fn handles_method_options() {
+        const CASES: &[(&str, bool, bool, bool)] = &[
+            ("||foo$method=post", false, false, true),
+            ("||foo$method=post|get", true, false, true),
+            ("||foo$method=head|get", true, true, false),
+            ("||foo$method=~get", false, true, true),
+            ("||foo$method=POST", false, false, true),
+            ("||foo$method=post|put", false, false, true),
+        ];
+
+        for (rule, get, head, post) in CASES {
+            let filter = NetworkFilter::parse(rule, true, Default::default()).unwrap();
+            assert_eq!(
+                foo_method_breakdown(*get, *head, *post),
+                NetworkFilterBreakdown::from(&filter),
+                "rule: {rule}",
+            );
+        }
+
+        const RULES: &[&str] = &[
+            "||lemonde.fr/*?s=$xhr,method=post",
+            "||perplexity.ai/rest/metrics/collect^$xhr,1p,method=post",
+            "||apmplus.volces.com/monitor_web/collect$xhr,method=post",
+            "@@||www.realclear*/esm/assets/js/analytics/chartbeat.js?v=$xhr,1p,method=get,domain=com|org",
+            "||pagead2.googlesyndication.com^$3p,xhr,method=head,redirect-rule=noop.js,domain=photopea.com",
+            "||void.nicopr.fr/rec$method=POST",
+        ];
+
+        for filter_text in RULES {
+            assert!(
+                NetworkFilter::parse(filter_text, true, Default::default()).is_ok(),
+                "failed to parse: {filter_text}"
+            );
+        }
+
+        {
+            let filter = NetworkFilter::parse(
+                "||perplexity.ai/rest/metrics/collect^$xhr,1p,method=post",
+                true,
+                Default::default(),
+            )
+            .unwrap();
+            assert!(filter.mask.contains(NetworkFilterMask::FROM_POST));
+            assert!(filter.mask.contains(NetworkFilterMask::FROM_XMLHTTPREQUEST));
+            assert!(!filter.mask.contains(NetworkFilterMask::FROM_NETWORK_TYPES));
+            assert!(filter.first_party());
+            assert!(!filter.third_party());
+        }
+
+        {
+            let filter = NetworkFilter::parse(
+                "@@*$xhr,method=head|get,domain=app.axenthost.com,3p",
+                true,
+                Default::default(),
+            )
+            .unwrap();
+            assert!(filter.is_exception());
+            assert!(filter.mask.contains(NetworkFilterMask::FROM_HEAD));
+            assert!(filter.mask.contains(NetworkFilterMask::FROM_GET));
+            assert!(!filter.mask.contains(NetworkFilterMask::FROM_POST));
+        }
+
+        const INVALID_RULES: &[&str] = &[
+            "||foo$method=put",
+            "||foo$method=connect|delete",
+            "||foo$method=",
+            "||foo$~method=post",
+        ];
+
+        for filter_text in INVALID_RULES {
+            assert!(
+                NetworkFilter::parse(filter_text, true, Default::default()).is_err(),
+                "expected parse error: {filter_text}"
+            );
+        }
+
+        assert!(NetworkFilter::parse("@@||foo^$generichide", true, Default::default()).is_ok());
+
+        for filter_text in [
+            "@@||foo^$generichide,method=post",
+            "@@||foo^$ghide,method=get",
+            "@@||foo^$generichide,method=head|get",
+        ] {
+            assert_eq!(
+                NetworkFilter::parse(filter_text, true, Default::default()).err(),
+                Some(NetworkFilterError::MethodWithGenerichide),
+                "expected MethodWithGenerichide: {filter_text}",
+            );
+        }
     }
 }

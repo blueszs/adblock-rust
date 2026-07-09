@@ -2,7 +2,6 @@
 mod blocker_tests {
 
     use super::super::*;
-    use crate::lists::parse_filters;
     use crate::request::Request;
     use crate::resources::{Resource, ResourceStorage};
     use base64::{engine::Engine as _, prelude::BASE64_STANDARD};
@@ -12,53 +11,47 @@ mod blocker_tests {
     #[test]
     fn single_slash() {
         let filters = ["/|"];
-
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options = BlockerOptions {
-            enable_optimizations: true,
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let blocker = Blocker::new(filters);
 
         let request = Request::new(
             "https://example.com/test/",
             "https://example.com",
             "xmlhttprequest",
+            "",
         )
         .unwrap();
-        assert!(blocker.check(&request, &Default::default()).matched);
+        assert!(blocker.check(&request, &Default::default()).should_block());
 
         let request = Request::new(
             "https://example.com/test",
             "https://example.com",
             "xmlhttprequest",
+            "",
         )
         .unwrap();
-        assert!(!blocker.check(&request, &Default::default()).matched);
+        assert!(!blocker.check(&request, &Default::default()).should_block());
     }
 
     fn test_requests_filters(
         filters: impl IntoIterator<Item = impl AsRef<str>>,
         requests: &[(Request, bool)],
     ) {
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options: BlockerOptions = BlockerOptions {
-            enable_optimizations: false, // optimizations will reduce number of rules
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let blocker = Blocker::new_debug(filters);
 
         requests.iter().for_each(|(req, expected_result)| {
             let matched_rule = blocker.check(req, &Default::default());
             if *expected_result {
-                assert!(matched_rule.matched, "Expected match for {}", req.url);
+                assert!(
+                    matched_rule.should_block(),
+                    "Expected match for {}",
+                    req.url
+                );
             } else {
                 assert!(
-                    !matched_rule.matched,
+                    !matched_rule.should_block(),
                     "Expected no match for {}, matched with {:?}",
-                    req.url, matched_rule.filter
+                    req.url,
+                    matched_rule.filter
                 );
             }
         });
@@ -75,16 +68,10 @@ mod blocker_tests {
             "https://imdb-video.media-imdb.com/kBOeI88k1o23eNAi",
             "https://www.imdb.com/video/13",
             "media",
+            "",
         )
         .unwrap();
-
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options: BlockerOptions = BlockerOptions {
-            enable_optimizations: false,
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let blocker = Blocker::new_debug(filters);
         let resources = ResourceStorage::in_memory_from_resources([Resource::simple(
             "noop-0.1s.mp3",
             crate::resources::MimeType::AudioMp3,
@@ -92,15 +79,15 @@ mod blocker_tests {
         )]);
 
         let matched_rule = blocker.check(&request, &resources);
-        assert!(!matched_rule.matched);
+        assert!(!matched_rule.should_block());
         assert!(!matched_rule.important);
         assert_eq!(
             matched_rule.redirect,
             Some("data:audio/mp3;base64,bXAz".to_string())
         );
         assert_eq!(
-            matched_rule.exception,
-            Some("@@||imdb-video.media-imdb.com^$domain=imdb.com".to_string())
+            matched_rule.exception.map(|f| f.to_string()),
+            Some("0:1: @@||imdb-video.media-imdb.com^$domain=imdb.com".to_string())
         );
     }
 
@@ -115,16 +102,10 @@ mod blocker_tests {
             "https://imdb-video.media-imdb.com/kBOeI88k1o23eNAi",
             "https://www.imdb.com/video/13",
             "media",
+            "",
         )
         .unwrap();
-
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options: BlockerOptions = BlockerOptions {
-            enable_optimizations: false,
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let blocker = Blocker::new_debug(filters);
         let resources = ResourceStorage::in_memory_from_resources([Resource::simple(
             "noop-0.1s.mp3",
             crate::resources::MimeType::AudioMp3,
@@ -132,13 +113,14 @@ mod blocker_tests {
         )]);
 
         let matched_rule = blocker.check(&request, &resources);
-        assert!(!matched_rule.matched);
+        assert!(!matched_rule.should_block());
         assert!(!matched_rule.important);
         assert_eq!(matched_rule.redirect, None);
         assert_eq!(
-            matched_rule.exception,
+            matched_rule.exception.map(|f| f.to_string()),
             Some(
-                "@@||imdb-video.media-imdb.com^$domain=imdb.com,redirect=noop-0.1s.mp3".to_string()
+                "0:1: @@||imdb-video.media-imdb.com^$domain=imdb.com,redirect=noop-0.1s.mp3"
+                    .to_string()
             )
         );
     }
@@ -150,16 +132,14 @@ mod blocker_tests {
             "||www3.doubleclick.net^$xmlhttprequest,redirect-rule=noop.txt,domain=lineups.fun",
         ];
 
-        let request =
-            Request::new("https://www3.doubleclick.net", "https://lineups.fun", "xhr").unwrap();
-
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options: BlockerOptions = BlockerOptions {
-            enable_optimizations: false,
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let request = Request::new(
+            "https://www3.doubleclick.net",
+            "https://lineups.fun",
+            "xhr",
+            "",
+        )
+        .unwrap();
+        let blocker = Blocker::new_debug(filters);
         let resources = ResourceStorage::in_memory_from_resources([Resource::simple(
             "noop.txt",
             crate::resources::MimeType::TextPlain,
@@ -167,7 +147,7 @@ mod blocker_tests {
         )]);
 
         let matched_rule = blocker.check(&request, &resources);
-        assert!(matched_rule.matched);
+        assert!(matched_rule.should_block());
         assert!(!matched_rule.important);
         assert_eq!(
             matched_rule.redirect,
@@ -180,7 +160,7 @@ mod blocker_tests {
     fn badfilter_does_not_match() {
         let filters = ["||foo.com$badfilter"];
         let url_results = [(
-            Request::new("https://foo.com", "https://bar.com", "image").unwrap(),
+            Request::new("https://foo.com", "https://bar.com", "image", "").unwrap(),
             false,
         )];
 
@@ -196,7 +176,7 @@ mod blocker_tests {
             "||foo.com$domain=foo.com|bar.com",
         ];
         let url_results = [(
-            Request::new("https://foo.com", "https://bar.com", "image").unwrap(),
+            Request::new("https://foo.com", "https://bar.com", "image", "").unwrap(),
             false,
         )];
 
@@ -212,7 +192,7 @@ mod blocker_tests {
             "||foo.com$domain=foo.com|bar.com,image",
         ];
         let url_results = [(
-            Request::new("https://foo.com", "https://bar.com", "image").unwrap(),
+            Request::new("https://foo.com", "https://bar.com", "image", "").unwrap(),
             true,
         )];
 
@@ -224,46 +204,43 @@ mod blocker_tests {
     #[test]
     fn trailing_dot_domain() {
         let filters = ["||dot.example.com.^", "||test.example.com^"];
-
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options = BlockerOptions {
-            enable_optimizations: true,
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let blocker = Blocker::new(filters);
 
         let request = Request::new(
             "https://dot.example.com",
             "https://dot.example.com",
             "document",
+            "",
         )
         .unwrap();
-        assert!(!blocker.check(&request, &Default::default()).matched);
+        assert!(!blocker.check(&request, &Default::default()).should_block());
 
         let request = Request::new(
             "https://dot.example.com.",
             "https://dot.example.com.",
             "document",
+            "",
         )
         .unwrap();
-        assert!(blocker.check(&request, &Default::default()).matched);
+        assert!(blocker.check(&request, &Default::default()).should_block());
 
         let request = Request::new(
             "https://test.example.com",
             "https://test.example.com",
             "document",
+            "",
         )
         .unwrap();
-        assert!(blocker.check(&request, &Default::default()).matched);
+        assert!(blocker.check(&request, &Default::default()).should_block());
 
         let request = Request::new(
             "https://test.example.com.",
             "https://test.example.com.",
             "document",
+            "",
         )
         .unwrap();
-        assert!(blocker.check(&request, &Default::default()).matched);
+        assert!(blocker.check(&request, &Default::default()).should_block());
     }
 
     #[test]
@@ -278,6 +255,7 @@ mod blocker_tests {
                     "https://r.alimc1.top/test.js",
                     "https://minisite.letv.com/",
                     "script",
+                    "",
                 )
                 .unwrap(),
                 true,
@@ -287,6 +265,7 @@ mod blocker_tests {
                     "https://www.baidu.com/test.js",
                     "https://minisite.letv.com/",
                     "script",
+                    "",
                 )
                 .unwrap(),
                 false,
@@ -296,6 +275,7 @@ mod blocker_tests {
                     "https://r.aabb.top/test.js",
                     "https://example.com/",
                     "script",
+                    "",
                 )
                 .unwrap(),
                 false,
@@ -305,30 +285,30 @@ mod blocker_tests {
                     "https://r.aabb.top/test.js",
                     "https://minisite.letv.com/",
                     "script",
+                    "",
                 )
                 .unwrap(),
                 true,
             ),
         ];
 
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options = BlockerOptions {
-            enable_optimizations: false, // optimizations will reduce number of rules
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let blocker = Blocker::new_debug(filters);
         let resources = ResourceStorage::default();
 
         url_results.into_iter().for_each(|(req, expected_result)| {
             let matched_rule = blocker.check(&req, &resources);
             if expected_result {
-                assert!(matched_rule.matched, "Expected match for {}", req.url);
+                assert!(
+                    matched_rule.should_block(),
+                    "Expected match for {}",
+                    req.url
+                );
             } else {
                 assert!(
-                    !matched_rule.matched,
+                    !matched_rule.should_block(),
                     "Expected no match for {}, matched with {:?}",
-                    req.url, matched_rule.filter
+                    req.url,
+                    matched_rule.filter
                 );
             }
         });
@@ -345,14 +325,7 @@ mod blocker_tests {
             "@@^disable-all^$csp",
             "^first-party-only^$csp=script-src 'none',1p",
         ];
-
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options = BlockerOptions {
-            enable_optimizations: false,
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let blocker = Blocker::new_debug(filters);
 
         {
             // No directives should be returned for requests that are not `document` or `subdocument` content types.
@@ -361,7 +334,8 @@ mod blocker_tests {
                     &Request::new(
                         "https://pirateproxy.live/static/custom_ads.js",
                         "https://pirateproxy.live",
-                        "script"
+                        "script",
+                        ""
                     )
                     .unwrap()
                 ),
@@ -372,7 +346,8 @@ mod blocker_tests {
                     &Request::new(
                         "https://pirateproxy.live/static/custom_ads.js",
                         "https://pirateproxy.live",
-                        "image"
+                        "image",
+                        ""
                     )
                     .unwrap()
                 ),
@@ -383,7 +358,8 @@ mod blocker_tests {
                     &Request::new(
                         "https://pirateproxy.live/static/custom_ads.js",
                         "https://pirateproxy.live",
-                        "object"
+                        "object",
+                        ""
                     )
                     .unwrap()
                 ),
@@ -394,14 +370,20 @@ mod blocker_tests {
             // A single directive should be returned if only one match is present in the engine, for both document and subdocument types
             assert_eq!(
                 blocker.get_csp_directives(
-                    &Request::new("https://example.com", "https://vidoza.co", "document").unwrap()
+                    &Request::new("https://example.com", "https://vidoza.co", "document", "")
+                        .unwrap()
                 ),
                 Some(String::from("worker-src 'none'"))
             );
             assert_eq!(
                 blocker.get_csp_directives(
-                    &Request::new("https://example.com", "https://vidoza.net", "subdocument")
-                        .unwrap()
+                    &Request::new(
+                        "https://example.com",
+                        "https://vidoza.net",
+                        "subdocument",
+                        ""
+                    )
+                    .unwrap()
                 ),
                 Some(String::from("worker-src 'none'"))
             );
@@ -421,7 +403,8 @@ mod blocker_tests {
                     &Request::new(
                         "https://example.com",
                         "https://pirateproxy.live",
-                        "document"
+                        "document",
+                        ""
                     )
                     .unwrap()
                 )
@@ -431,7 +414,8 @@ mod blocker_tests {
                     &Request::new(
                         "https://example.com",
                         "https://pirateproxy.live",
-                        "subdocument"
+                        "subdocument",
+                        ""
                     )
                     .unwrap()
                 )
@@ -441,14 +425,19 @@ mod blocker_tests {
             // A directive with an exception should not be returned
             assert_eq!(
                 blocker.get_csp_directives(
-                    &Request::new("https://1337x.to", "https://1337x.to", "document").unwrap()
+                    &Request::new("https://1337x.to", "https://1337x.to", "document", "").unwrap()
                 ),
                 Some(String::from("script-src 'self' 'unsafe-inline'"))
             );
             assert_eq!(
                 blocker.get_csp_directives(
-                    &Request::new("https://1337x.to/no-csp", "https://1337x.to", "subdocument")
-                        .unwrap()
+                    &Request::new(
+                        "https://1337x.to/no-csp",
+                        "https://1337x.to",
+                        "subdocument",
+                        ""
+                    )
+                    .unwrap()
                 ),
                 None
             );
@@ -460,7 +449,8 @@ mod blocker_tests {
                     &Request::new(
                         "https://example.com/duplicated-directive",
                         "https://flashx.cc",
-                        "document"
+                        "document",
+                        ""
                     )
                     .unwrap()
                 ),
@@ -471,7 +461,8 @@ mod blocker_tests {
                     &Request::new(
                         "https://example.com/duplicated-directive",
                         "https://flashx.cc",
-                        "subdocument"
+                        "subdocument",
+                        ""
                     )
                     .unwrap()
                 ),
@@ -485,7 +476,8 @@ mod blocker_tests {
                     &Request::new(
                         "https://1337x.to/duplicated-directive/disable-all",
                         "https://thepiratebay10.org",
-                        "document"
+                        "document",
+                        ""
                     )
                     .unwrap()
                 ),
@@ -496,7 +488,8 @@ mod blocker_tests {
                     &Request::new(
                         "https://1337x.to/duplicated-directive/disable-all",
                         "https://thepiratebay10.org",
-                        "document"
+                        "document",
+                        ""
                     )
                     .unwrap()
                 ),
@@ -510,7 +503,8 @@ mod blocker_tests {
                     &Request::new(
                         "htps://github.com/first-party-only",
                         "https://example.com",
-                        "subdocument"
+                        "subdocument",
+                        ""
                     )
                     .unwrap()
                 ),
@@ -521,7 +515,8 @@ mod blocker_tests {
                     &Request::new(
                         "https://example.com/first-party-only",
                         "https://example.com",
-                        "document"
+                        "document",
+                        ""
                     )
                     .unwrap()
                 ),
@@ -539,14 +534,7 @@ mod blocker_tests {
             "^block^$important",
             "$removeparam=testCase,~xhr",
         ];
-
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options = BlockerOptions {
-            enable_optimizations: true,
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let blocker = Blocker::new(filters);
         let resources = ResourceStorage::in_memory_from_resources([Resource::simple(
             "noopjs",
             crate::resources::MimeType::ApplicationJavascript,
@@ -558,6 +546,7 @@ mod blocker_tests {
                 "https://example.com?q=1&test=2#blue",
                 "https://antonok.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &resources,
@@ -566,13 +555,14 @@ mod blocker_tests {
             result.rewritten_url,
             Some("https://example.com?q=1#blue".into())
         );
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com?test=2&q=1#blue",
                 "https://antonok.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &resources,
@@ -581,13 +571,14 @@ mod blocker_tests {
             result.rewritten_url,
             Some("https://example.com?q=1#blue".into())
         );
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com?test=2#blue",
                 "https://antonok.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &resources,
@@ -596,84 +587,112 @@ mod blocker_tests {
             result.rewritten_url,
             Some("https://example.com#blue".into())
         );
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
-            &Request::new("https://example.com?q=1#blue", "https://antonok.com", "xhr").unwrap(),
+            &Request::new(
+                "https://example.com?q=1#blue",
+                "https://antonok.com",
+                "xhr",
+                "",
+            )
+            .unwrap(),
             &resources,
         );
         assert_eq!(result.rewritten_url, None);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com?q=1&test=2",
                 "https://antonok.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.rewritten_url, Some("https://example.com?q=1".into()));
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com?test=2&q=1",
                 "https://antonok.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.rewritten_url, Some("https://example.com?q=1".into()));
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
-            &Request::new("https://example.com?test=2", "https://antonok.com", "xhr").unwrap(),
+            &Request::new(
+                "https://example.com?test=2",
+                "https://antonok.com",
+                "xhr",
+                "",
+            )
+            .unwrap(),
             &resources,
         );
         assert_eq!(result.rewritten_url, Some("https://example.com".into()));
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
-            &Request::new("https://example.com?test=2", "https://antonok.com", "image").unwrap(),
+            &Request::new(
+                "https://example.com?test=2",
+                "https://antonok.com",
+                "image",
+                "",
+            )
+            .unwrap(),
             &resources,
         );
         assert_eq!(result.rewritten_url, None);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
-            &Request::new("https://example.com?q=1", "https://antonok.com", "xhr").unwrap(),
+            &Request::new("https://example.com?q=1", "https://antonok.com", "xhr", "").unwrap(),
             &resources,
         );
         assert_eq!(result.rewritten_url, None);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
-            &Request::new("https://example.com?q=fbclid", "https://antonok.com", "xhr").unwrap(),
+            &Request::new(
+                "https://example.com?q=fbclid",
+                "https://antonok.com",
+                "xhr",
+                "",
+            )
+            .unwrap(),
             &resources,
         );
         assert_eq!(result.rewritten_url, None);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com?fbclid=10938&q=1&test=2",
                 "https://antonok.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.rewritten_url, Some("https://example.com?q=1".into()));
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://test.com?fbclid=10938&q=1&test=2",
                 "https://antonok.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &resources,
@@ -682,13 +701,14 @@ mod blocker_tests {
             result.rewritten_url,
             Some("https://test.com?q=1&test=2".into())
         );
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com?q1=1&q2=2&q3=3&test=2&q4=4&q5=5&fbclid=39",
                 "https://antonok.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &resources,
@@ -697,13 +717,14 @@ mod blocker_tests {
             result.rewritten_url,
             Some("https://example.com?q1=1&q2=2&q3=3&q4=4&q5=5".into())
         );
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com?q1=1&q1=2&test=2&test=3",
                 "https://antonok.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &resources,
@@ -712,13 +733,14 @@ mod blocker_tests {
             result.rewritten_url,
             Some("https://example.com?q1=1&q1=2".into())
         );
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/script.js?test=2#blue",
                 "https://antonok.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &resources,
@@ -731,13 +753,14 @@ mod blocker_tests {
             result.redirect,
             Some("data:application/javascript;base64,KCgpID0+IHt9KSgp".into())
         );
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/block/script.js?test=2",
                 "https://antonok.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &resources,
@@ -747,37 +770,40 @@ mod blocker_tests {
             result.redirect,
             Some("data:application/javascript;base64,KCgpID0+IHt9KSgp".into())
         );
-        assert!(result.matched);
+        assert!(result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/Path/?Test=ABC&testcase=AbC&testCase=aBc",
                 "https://antonok.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.rewritten_url, None);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/Path/?Test=ABC&testcase=AbC&testCase=aBc",
                 "https://antonok.com",
                 "image",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.rewritten_url, None);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/Path/?Test=ABC&testcase=AbC&testCase=aBc",
                 "https://antonok.com",
                 "subdocument",
+                "",
             )
             .unwrap(),
             &resources,
@@ -786,13 +812,14 @@ mod blocker_tests {
             result.rewritten_url,
             Some("https://example.com/Path/?Test=ABC&testcase=AbC".into())
         );
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/Path/?Test=ABC&testcase=AbC&testCase=aBc",
                 "https://antonok.com",
                 "document",
+                "",
             )
             .unwrap(),
             &resources,
@@ -801,13 +828,14 @@ mod blocker_tests {
             result.rewritten_url,
             Some("https://example.com/Path/?Test=ABC&testcase=AbC".into())
         );
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com?Test=ABC?123&test=3#&test=4#b",
                 "https://antonok.com",
                 "document",
+                "",
             )
             .unwrap(),
             &resources,
@@ -816,13 +844,14 @@ mod blocker_tests {
             result.rewritten_url,
             Some("https://example.com?Test=ABC?123#&test=4#b".into())
         );
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com?Test=ABC&testCase=5",
                 "https://antonok.com",
                 "document",
+                "",
             )
             .unwrap(),
             &resources,
@@ -831,19 +860,20 @@ mod blocker_tests {
             result.rewritten_url,
             Some("https://example.com?Test=ABC".into())
         );
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com?Test=ABC&testCase=5",
                 "https://antonok.com",
                 "image",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.rewritten_url, None);
-        assert!(!result.matched);
+        assert!(!result.should_block());
     }
 
     /// Tests ported from the previous query parameter stripping logic in brave-core
@@ -937,19 +967,12 @@ mod blocker_tests {
         .iter()
         .map(|s| format!("*$removeparam={s}"))
         .collect::<Vec<_>>();
-
-        let (network_filters, _) = parse_filters(&filters, true, Default::default());
-
-        let blocker_options = BlockerOptions {
-            enable_optimizations: true,
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let blocker = Blocker::new(filters);
         let resources = ResourceStorage::default();
 
         for (original, expected) in testcases.into_iter() {
             let result = blocker.check(
-                &Request::new(original, "https://example.net", "xhr").unwrap(),
+                &Request::new(original, "https://example.net", "xhr", "").unwrap(),
                 &resources,
             );
             let expected = if original == expected {
@@ -967,26 +990,20 @@ mod blocker_tests {
     #[test]
     fn test_removeparam_same_tokens() {
         let filters = ["$removeparam=example1_", "$removeparam=example1-"];
-
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options = BlockerOptions {
-            enable_optimizations: true,
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let blocker = Blocker::new(filters);
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com?example1_=1&example1-=2",
                 "https://example.com",
                 "xhr",
+                "",
             )
             .unwrap(),
             &Default::default(),
         );
         assert_eq!(result.rewritten_url, Some("https://example.com".into()));
-        assert!(!result.matched);
+        assert!(!result.should_block());
     }
 
     #[test]
@@ -999,14 +1016,7 @@ mod blocker_tests {
             "@@^exceptb10^$redirect-rule=b:10",
             "@@^exceptc20^$redirect-rule=c:20",
         ];
-
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options = BlockerOptions {
-            enable_optimizations: true,
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let blocker = Blocker::new(filters);
         fn simple_resource(identifier: &str) -> Resource {
             Resource::simple(
                 identifier,
@@ -1035,108 +1045,117 @@ mod blocker_tests {
                 "https://example.net/test",
                 "https://example.com",
                 "xmlhttprequest",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.redirect, None);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.net/test.txt",
                 "https://example.com",
                 "xmlhttprequest",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.redirect, a_redirect);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/test.txt",
                 "https://example.com",
                 "xmlhttprequest",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.redirect, b_redirect);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/text.txt",
                 "https://example.com",
                 "xmlhttprequest",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.redirect, c_redirect);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/exceptc20/text.txt",
                 "https://example.com",
                 "xmlhttprequest",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.redirect, b_redirect);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/exceptb10/text.txt",
                 "https://example.com",
                 "xmlhttprequest",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.redirect, c_redirect);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/exceptc20/exceptb10/text.txt",
                 "https://example.com",
                 "xmlhttprequest",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.redirect, a_redirect);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/exceptc20/exceptb10/excepta/text.txt",
                 "https://example.com",
                 "xmlhttprequest",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.redirect, None);
-        assert!(!result.matched);
+        assert!(!result.should_block());
 
         let result = blocker.check(
             &Request::new(
                 "https://example.com/exceptc20/exceptb10/text",
                 "https://example.com",
                 "xmlhttprequest",
+                "",
             )
             .unwrap(),
             &resources,
         );
         assert_eq!(result.redirect, None);
-        assert!(!result.matched);
+        assert!(!result.should_block());
     }
 
     #[test]
@@ -1157,18 +1176,12 @@ mod blocker_tests {
         let request_expectations: Vec<_> = url_results
             .into_iter()
             .map(|(url, expected_result)| {
-                let request = Request::new(url, "https://example.com", "other").unwrap();
+                let request = Request::new(url, "https://example.com", "other", "").unwrap();
                 (request, expected_result)
             })
             .collect();
 
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options: BlockerOptions = BlockerOptions {
-            enable_optimizations: false, // optimizations will reduce number of rules
-        };
-
-        let mut blocker = Blocker::new(network_filters, &blocker_options);
+        let mut blocker = Blocker::new_debug(filters);
         let resources = Default::default();
         blocker.enable_tags(&["stuff"]);
         assert_eq!(
@@ -1181,12 +1194,17 @@ mod blocker_tests {
             .for_each(|(req, expected_result)| {
                 let matched_rule = blocker.check(&req, &resources);
                 if expected_result {
-                    assert!(matched_rule.matched, "Expected match for {}", req.url);
+                    assert!(
+                        matched_rule.should_block(),
+                        "Expected match for {}",
+                        req.url
+                    );
                 } else {
                     assert!(
-                        !matched_rule.matched,
+                        !matched_rule.should_block(),
                         "Expected no match for {}, matched with {:?}",
-                        req.url, matched_rule.filter
+                        req.url,
+                        matched_rule.filter
                     );
                 }
             });
@@ -1210,18 +1228,12 @@ mod blocker_tests {
         let request_expectations: Vec<_> = url_results
             .into_iter()
             .map(|(url, expected_result)| {
-                let request = Request::new(url, "https://example.com", "other").unwrap();
+                let request = Request::new(url, "https://example.com", "other", "").unwrap();
                 (request, expected_result)
             })
             .collect();
 
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options: BlockerOptions = BlockerOptions {
-            enable_optimizations: false, // optimizations will reduce number of rules
-        };
-
-        let mut blocker = Blocker::new(network_filters, &blocker_options);
+        let mut blocker = Blocker::new_debug(filters);
         let resources = Default::default();
         blocker.enable_tags(&["stuff"]);
         blocker.enable_tags(&["brian"]);
@@ -1235,12 +1247,17 @@ mod blocker_tests {
             .for_each(|(req, expected_result)| {
                 let matched_rule = blocker.check(&req, &resources);
                 if expected_result {
-                    assert!(matched_rule.matched, "Expected match for {}", req.url);
+                    assert!(
+                        matched_rule.should_block(),
+                        "Expected match for {}",
+                        req.url
+                    );
                 } else {
                     assert!(
-                        !matched_rule.matched,
+                        !matched_rule.should_block(),
                         "Expected no match for {}, matched with {:?}",
-                        req.url, matched_rule.filter
+                        req.url,
+                        matched_rule.filter
                     );
                 }
             });
@@ -1264,18 +1281,12 @@ mod blocker_tests {
         let request_expectations: Vec<_> = url_results
             .into_iter()
             .map(|(url, expected_result)| {
-                let request = Request::new(url, "https://example.com", "other").unwrap();
+                let request = Request::new(url, "https://example.com", "other", "").unwrap();
                 (request, expected_result)
             })
             .collect();
 
-        let (network_filters, _) = parse_filters(filters, true, Default::default());
-
-        let blocker_options: BlockerOptions = BlockerOptions {
-            enable_optimizations: false, // optimizations will reduce number of rules
-        };
-
-        let mut blocker = Blocker::new(network_filters, &blocker_options);
+        let mut blocker = Blocker::new_debug(filters);
         let resources = Default::default();
         blocker.enable_tags(&["brian", "stuff"]);
         assert_eq!(
@@ -1293,12 +1304,17 @@ mod blocker_tests {
             .for_each(|(req, expected_result)| {
                 let matched_rule = blocker.check(&req, &resources);
                 if expected_result {
-                    assert!(matched_rule.matched, "Expected match for {}", req.url);
+                    assert!(
+                        matched_rule.should_block(),
+                        "Expected match for {}",
+                        req.url
+                    );
                 } else {
                     assert!(
-                        !matched_rule.matched,
+                        !matched_rule.should_block(),
                         "Expected no match for {}, matched with {:?}",
-                        req.url, matched_rule.filter
+                        req.url,
+                        matched_rule.filter
                     );
                 }
             });
@@ -1306,16 +1322,7 @@ mod blocker_tests {
 
     #[test]
     fn exception_force_check() {
-        let blocker_options: BlockerOptions = BlockerOptions {
-            enable_optimizations: true,
-        };
-
-        let mut filter_set = crate::lists::FilterSet::new(true);
-        filter_set
-            .add_filter("@@*ad_banner.png", Default::default())
-            .unwrap();
-
-        let blocker = Blocker::new(filter_set.network_filters, &blocker_options);
+        let blocker = Blocker::new(["@@*ad_banner.png"]);
 
         let resources = Default::default();
 
@@ -1323,29 +1330,21 @@ mod blocker_tests {
             "http://example.com/ad_banner.png",
             "https://example.com",
             "other",
+            "",
         )
         .unwrap();
 
         let matched_rule = blocker.check_parameterised(&request, &resources, false, true);
-        assert!(!matched_rule.matched);
+        assert!(!matched_rule.should_block());
         assert!(matched_rule.exception.is_some());
     }
 
     #[test]
     fn generichide() {
-        let blocker_options: BlockerOptions = BlockerOptions {
-            enable_optimizations: true,
-        };
-
-        let mut filter_set = crate::lists::FilterSet::new(true);
-        filter_set
-            .add_filter("@@||example.com$generichide", Default::default())
-            .unwrap();
-
-        let blocker = Blocker::new(filter_set.network_filters, &blocker_options);
+        let blocker = Blocker::new(["@@||example.com$generichide\n"]);
 
         assert!(blocker.check_generic_hide(
-            &Request::new("https://example.com", "https://example.com", "other").unwrap()
+            &Request::new("https://example.com", "https://example.com", "other", "").unwrap()
         ));
     }
 }
@@ -1356,26 +1355,27 @@ mod placeholder_string_tests {
     #[test]
     fn test_constant_placeholder_string() {
         let mut filter_set = crate::lists::FilterSet::new(false);
-        filter_set
-            .add_filter("||example.com^", Default::default())
-            .unwrap();
-        let engine = crate::Engine::from_filter_set(filter_set, true);
+        filter_set.add_filter_list("||example.com^\n".to_string(), Default::default());
+        let engine = crate::Engine::new_with_filter_set(filter_set);
         let block = engine.check_network_request(
-            &crate::request::Request::new("https://example.com", "https://example.com", "document")
-                .unwrap(),
+            &crate::request::Request::new(
+                "https://example.com",
+                "https://example.com",
+                "document",
+                "",
+            )
+            .unwrap(),
         );
-        assert_eq!(
-            block.filter,
-            Some("100000001100110001111111111111".to_string())
-        );
+        assert_eq!(block.filter.and_then(|f| f.raw_line), None);
     }
 }
 
 #[cfg(test)]
 mod legacy_rule_parsing_tests {
-    use crate::blocker::{Blocker, BlockerOptions};
+    use crate::blocker::Blocker;
+    use crate::engine::Engine;
     use crate::filters::network::NetworkFilterMaskHelper;
-    use crate::lists::{parse_filters, FilterFormat, ParseOptions};
+    use crate::lists::{parse_filters, FilterFormat, FilterSet, ParseOptions};
     use crate::test_utils::rules_from_lists;
 
     struct ListCounts {
@@ -1416,7 +1416,7 @@ mod legacy_rule_parsing_tests {
     };
     // differences in counts explained by hashset size underreporting as detailed in the next two cases
     const EASY_PRIVACY: ListCounts = ListCounts {
-        filters: 55396 - 818, // total - exceptions
+        filters: 55397 - 818, // total - exceptions
         cosmetic_filters: 32,
         exceptions: 818,
         duplicates: 2,
@@ -1472,7 +1472,7 @@ mod legacy_rule_parsing_tests {
         let rules = rules_from_lists(rule_lists);
 
         let (network_filters, cosmetic_filters) = parse_filters(
-            rules,
+            rules.lines(),
             true,
             ParseOptions {
                 format,
@@ -1494,11 +1494,10 @@ mod legacy_rule_parsing_tests {
             "Number of collected filters does not match expectation"
         );
 
-        let blocker_options = BlockerOptions {
-            enable_optimizations: false, // optimizations will reduce number of rules
-        };
-
-        let blocker = Blocker::new(network_filters, &blocker_options);
+        let mut filter_set = FilterSet::new(true);
+        filter_set.add_filter_list(rules, Default::default());
+        let engine = Engine::new_with_filter_set_no_optimize(filter_set);
+        let blocker = Blocker::from_context(engine.filter_data_context());
 
         // Some filters in the filter_map are pointed at by multiple tokens, increasing the total number of items
         assert!(
