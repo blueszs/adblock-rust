@@ -18,6 +18,25 @@ pub enum RequestMethod {
     Other,
 }
 
+impl std::str::FromStr for RequestMethod {
+    type Err = ();
+
+    fn from_str(raw_method: &str) -> Result<Self, Self::Err> {
+        match raw_method.to_ascii_lowercase().as_str() {
+            "" => Err(()),
+            "connect" => Ok(RequestMethod::Connect),
+            "delete" => Ok(RequestMethod::Delete),
+            "get" => Ok(RequestMethod::Get),
+            "head" => Ok(RequestMethod::Head),
+            "options" => Ok(RequestMethod::Options),
+            "patch" => Ok(RequestMethod::Patch),
+            "post" => Ok(RequestMethod::Post),
+            "put" => Ok(RequestMethod::Put),
+            _ => Ok(RequestMethod::Other),
+        }
+    }
+}
+
 /// The type of resource requested from the URL endpoint.
 #[derive(Clone, PartialEq, Debug)]
 pub enum RequestType {
@@ -130,31 +149,6 @@ impl Request {
         &self.request_tokens
     }
 
-    fn parse_method(raw_method: &str) -> Option<RequestMethod> {
-        if raw_method.is_empty() {
-            return None;
-        }
-        Some(if raw_method.eq_ignore_ascii_case("connect") {
-            RequestMethod::Connect
-        } else if raw_method.eq_ignore_ascii_case("delete") {
-            RequestMethod::Delete
-        } else if raw_method.eq_ignore_ascii_case("get") {
-            RequestMethod::Get
-        } else if raw_method.eq_ignore_ascii_case("head") {
-            RequestMethod::Head
-        } else if raw_method.eq_ignore_ascii_case("options") {
-            RequestMethod::Options
-        } else if raw_method.eq_ignore_ascii_case("patch") {
-            RequestMethod::Patch
-        } else if raw_method.eq_ignore_ascii_case("post") {
-            RequestMethod::Post
-        } else if raw_method.eq_ignore_ascii_case("put") {
-            RequestMethod::Put
-        } else {
-            RequestMethod::Other
-        })
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn from_detailed_parameters(
         raw_type: &str,
@@ -229,7 +223,7 @@ impl Request {
         method: &str,
     ) -> Result<Request, RequestError> {
         if let Some(parsed_url) = url_parser::parse_url(url) {
-            let parsed_method = Self::parse_method(method);
+            let parsed_method = method.parse::<RequestMethod>().ok();
             if let Some(parsed_source) = url_parser::parse_url(source_url) {
                 let source_domain = parsed_source.domain();
 
@@ -284,7 +278,7 @@ impl Request {
             source_hostname,
             third_party,
             url.to_string(),
-            Self::parse_method(method),
+            method.parse::<RequestMethod>().ok(),
         )
     }
 }
