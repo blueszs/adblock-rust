@@ -438,11 +438,7 @@ impl Blocker {
 
         let mut remaining_directives = enabled_directives.difference(&disabled_directives);
 
-        let mut merged = if let Some(directive) = remaining_directives.next() {
-            String::from(*directive)
-        } else {
-            return None;
-        };
+        let mut merged = String::from(*remaining_directives.next()?);
 
         remaining_directives.for_each(|directive| {
             merged.push(',');
