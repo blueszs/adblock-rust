@@ -551,8 +551,8 @@ impl TryFrom<NetworkFilter<'_>> for CbRuleEquivalent {
                 return Err(CbRuleCreationFailure::RuleContainsNonASCII);
             }
 
-            if let Some(resource_types) = &single_rule.trigger.resource_type {
-                if resource_types.len() > 1
+            if let Some(resource_types) = &single_rule.trigger.resource_type
+                && resource_types.len() > 1
                     && resource_types.contains(&CbResourceType::Document)
                     && single_rule.trigger.load_type.is_empty()
                 {
@@ -579,7 +579,6 @@ impl TryFrom<NetworkFilter<'_>> for CbRuleEquivalent {
 
                     return Ok(Self::SplitDocument(non_doc_rule, just_doc_rule));
                 }
-            }
 
             Ok(Self::SingleRule(single_rule))
         } else {

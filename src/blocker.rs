@@ -232,17 +232,16 @@ impl Blocker {
         let redirect_resource = {
             let mut exceptions = vec![];
             for redirect_filter in redirect_filters.iter() {
-                if redirect_filter.filter_mask.is_exception() {
-                    if let Some(redirect) = redirect_filter.modifier_option.as_ref() {
+                if redirect_filter.filter_mask.is_exception()
+                    && let Some(redirect) = redirect_filter.modifier_option.as_ref() {
                         exceptions.push(redirect);
                     }
-                }
             }
             let mut resource_and_priority = None;
             for redirect_filter in redirect_filters.iter() {
-                if !redirect_filter.filter_mask.is_exception() {
-                    if let Some(redirect) = redirect_filter.modifier_option.as_ref() {
-                        if !exceptions.contains(&redirect) {
+                if !redirect_filter.filter_mask.is_exception()
+                    && let Some(redirect) = redirect_filter.modifier_option.as_ref()
+                        && !exceptions.contains(&redirect) {
                             // parse redirect + priority
                             let (resource, priority) =
                                 if let Some(idx) = find_char_reverse(b':', redirect.as_bytes()) {
@@ -264,8 +263,6 @@ impl Blocker {
                                 resource_and_priority = Some((resource, priority));
                             }
                         }
-                    }
-                }
             }
             resource_and_priority.map(|(r, _)| r)
         };
@@ -361,12 +358,11 @@ impl Blocker {
             for removeparam_filter in filters {
                 if let Some(removeparam) = &removeparam_filter.modifier_option {
                     params.iter_mut().for_each(|(param, include)| {
-                        if let QParam::KeyValue(k, v) = param {
-                            if !v.is_empty() && k == removeparam {
+                        if let QParam::KeyValue(k, v) = param
+                            && !v.is_empty() && k == removeparam {
                                 *include = false;
                                 rewrite = true;
                             }
-                        }
                     });
                 }
             }
