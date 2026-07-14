@@ -398,28 +398,32 @@ mod blocker_tests {
                     "worker-src 'none',script-src 'self' * 'unsafe-inline'",
                 )),
             ];
-            assert!(possible_results.contains(
-                &blocker.get_csp_directives(
-                    &Request::new(
-                        "https://example.com",
-                        "https://pirateproxy.live",
-                        "document",
-                        ""
+            assert!(
+                possible_results.contains(
+                    &blocker.get_csp_directives(
+                        &Request::new(
+                            "https://example.com",
+                            "https://pirateproxy.live",
+                            "document",
+                            ""
+                        )
+                        .unwrap()
                     )
-                    .unwrap()
                 )
-            ));
-            assert!(possible_results.contains(
-                &blocker.get_csp_directives(
-                    &Request::new(
-                        "https://example.com",
-                        "https://pirateproxy.live",
-                        "subdocument",
-                        ""
+            );
+            assert!(
+                possible_results.contains(
+                    &blocker.get_csp_directives(
+                        &Request::new(
+                            "https://example.com",
+                            "https://pirateproxy.live",
+                            "subdocument",
+                            ""
+                        )
+                        .unwrap()
                     )
-                    .unwrap()
                 )
-            ));
+            );
         }
         {
             // A directive with an exception should not be returned
@@ -1375,7 +1379,7 @@ mod legacy_rule_parsing_tests {
     use crate::blocker::Blocker;
     use crate::engine::Engine;
     use crate::filters::network::NetworkFilterMaskHelper;
-    use crate::lists::{parse_filters, FilterFormat, FilterSet, ParseOptions};
+    use crate::lists::{FilterFormat, FilterSet, ParseOptions, parse_filters};
     use crate::test_utils::rules_from_lists;
 
     struct ListCounts {

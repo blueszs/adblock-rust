@@ -874,12 +874,10 @@ mod parse_tests {
             );
         }
         {
-            assert!(NetworkFilter::parse(
-                "||foo.com$media,match-case,image",
-                true,
-                Default::default()
-            )
-            .is_err());
+            assert!(
+                NetworkFilter::parse("||foo.com$media,match-case,image", true, Default::default())
+                    .is_err()
+            );
         }
         // match-case on regex rules is ok
         {
@@ -937,17 +935,21 @@ mod parse_tests {
                 .unwrap()
                 .first_party()
         );
-        assert!(!NetworkFilter::parse(
-            "||foo.com$first-party,~first-party",
-            true,
-            Default::default()
-        )
-        .unwrap()
-        .first_party());
-        // defaults to true
-        assert!(NetworkFilter::parse("||foo.com", true, Default::default())
+        assert!(
+            !NetworkFilter::parse(
+                "||foo.com$first-party,~first-party",
+                true,
+                Default::default()
+            )
             .unwrap()
-            .first_party());
+            .first_party()
+        );
+        // defaults to true
+        assert!(
+            NetworkFilter::parse("||foo.com", true, Default::default())
+                .unwrap()
+                .first_party()
+        );
     }
 
     #[test]
@@ -979,17 +981,21 @@ mod parse_tests {
                 .unwrap()
                 .third_party()
         );
-        assert!(!NetworkFilter::parse(
-            "||foo.com$first-party,~third-party",
-            true,
-            Default::default()
-        )
-        .unwrap()
-        .third_party());
-        // defaults to true
-        assert!(NetworkFilter::parse("||foo.com", true, Default::default())
+        assert!(
+            !NetworkFilter::parse(
+                "||foo.com$first-party,~third-party",
+                true,
+                Default::default()
+            )
             .unwrap()
-            .third_party());
+            .third_party()
+        );
+        // defaults to true
+        assert!(
+            NetworkFilter::parse("||foo.com", true, Default::default())
+                .unwrap()
+                .third_party()
+        );
     }
 
     #[test]

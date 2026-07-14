@@ -212,7 +212,7 @@ fn parse_filter_options<'a>(
             // values it uses are shipped by uBO as aliases of the corresponding redirect
             // resources, so no further translation is needed here.
             ("redirect", true) | ("rewrite", true) => {
-                return Err(NetworkFilterError::NegatedRedirection)
+                return Err(NetworkFilterError::NegatedRedirection);
             }
             ("redirect", false) | ("rewrite", false) => {
                 // Ignore this filter if no redirection resource is specified
@@ -244,7 +244,7 @@ fn parse_filter_options<'a>(
                 NetworkFilterOption::Removeparam(value)
             }
             ("generichide", true) | ("ghide", true) => {
-                return Err(NetworkFilterError::NegatedGenericHide)
+                return Err(NetworkFilterError::NegatedGenericHide);
             }
             ("generichide", false) | ("ghide", false) => NetworkFilterOption::Generichide,
             ("document", true) | ("doc", true) => return Err(NetworkFilterError::NegatedDocument),

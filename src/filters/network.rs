@@ -962,9 +962,10 @@ impl<'a> NetworkFilter<'a> {
             && self.opt_not_domains.is_none()
             && self.opt_domains.as_ref().map(|d| d.len()) == Some(1)
             && let Some(domains) = self.opt_domains.as_ref()
-                && let Some(domain) = domains.first() {
-                    tokens_buffer.push(*domain);
-                }
+            && let Some(domain) = domains.first()
+        {
+            tokens_buffer.push(*domain);
+        }
 
         // Get tokens from filter
         match &self.filter {
@@ -1002,24 +1003,26 @@ impl<'a> NetworkFilter<'a> {
                 .features_mask
                 .contains(NetworkFilterFeaturesMask::IS_REMOVEPARAM)
             && let Some(removeparam) = &self.modifier_option
-                && VALID_PARAM.is_match(removeparam.as_ref()) {
-                    utils::tokenize_to(&removeparam.to_ascii_lowercase(), tokens_buffer);
-                }
+            && VALID_PARAM.is_match(removeparam.as_ref())
+        {
+            utils::tokenize_to(&removeparam.to_ascii_lowercase(), tokens_buffer);
+        }
 
         // If we got no tokens for the filter/hostname part, then we will dispatch
         // this filter in multiple buckets based on the domains option.
         if tokens_buffer.is_empty() && self.opt_domains.is_some() && self.opt_not_domains.is_none()
         {
             if let Some(opt_domains) = self.opt_domains.as_ref()
-                && !opt_domains.is_empty() {
-                    let cap = tokens_buffer.remaining_capacity();
-                    if opt_domains.len() <= cap {
-                        tokens_buffer.extend(opt_domains.iter().copied());
-                        return FilterTokens::OptDomains;
-                    }
-                    // Too many domains to bucket individually; fall back to the catch-all
-                    // bucket (token 0).
+                && !opt_domains.is_empty()
+            {
+                let cap = tokens_buffer.remaining_capacity();
+                if opt_domains.len() <= cap {
+                    tokens_buffer.extend(opt_domains.iter().copied());
+                    return FilterTokens::OptDomains;
                 }
+                // Too many domains to bucket individually; fall back to the catch-all
+                // bucket (token 0).
+            }
             FilterTokens::Empty
         } else {
             // Add optional token for protocol

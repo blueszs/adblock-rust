@@ -1,8 +1,8 @@
 mod legacy_test_filters {
+    use adblock::Engine;
     use adblock::filters::network::NetworkFilter;
     use adblock::filters::network::NetworkFilterMask;
     use adblock::request::Request;
-    use adblock::Engine;
 
     fn test_filter<'a>(
         raw_filter: &str,
@@ -309,8 +309,8 @@ mod legacy_test_filters {
 }
 
 mod legacy_check_match {
-    use adblock::request::Request;
     use adblock::Engine;
+    use adblock::request::Request;
 
     #[allow(deprecated)]
     fn check_match<'a>(
@@ -407,9 +407,11 @@ mod legacy_check_match {
             )
             .unwrap();
             assert!(!engine.check_network_request(&request).should_block());
-            assert!(!engine_deserialized
-                .check_network_request(&request)
-                .should_block());
+            assert!(
+                !engine_deserialized
+                    .check_network_request(&request)
+                    .should_block()
+            );
         }
 
         check_match(
@@ -495,8 +497,8 @@ mod legacy_check_match {
 }
 
 mod legacy_check_options {
-    use adblock::request::Request;
     use adblock::Engine;
+    use adblock::request::Request;
 
     fn check_option_rule<'a>(rules: &[&'a str], tests: &[(&'a str, &'a str, &'a str, bool)]) {
         let engine = Engine::new_with_list_text(rules.join("\n")); // first one with the provided rules
@@ -838,10 +840,10 @@ mod legacy_check_options {
 }
 
 mod legacy_misc_tests {
+    use adblock::Engine;
     use adblock::filters::network::NetworkFilter;
     use adblock::lists::FilterSet;
     use adblock::request::Request;
-    use adblock::Engine;
 
     fn engine_from_rules_debug(rules: impl IntoIterator<Item = impl AsRef<str>>) -> Engine {
         let list_text = rules.into_iter().fold(String::new(), |mut acc, rule| {
@@ -896,73 +898,85 @@ mod legacy_misc_tests {
         let mut engine2 = Engine::default();
         engine2.deserialize(&serialized).unwrap();
 
-        assert!(engine
-            .check_network_request(
-                &Request::new(
-                    "https://googlesyndication.com/script.js",
-                    "https://example.com",
-                    "script",
-                    ""
+        assert!(
+            engine
+                .check_network_request(
+                    &Request::new(
+                        "https://googlesyndication.com/script.js",
+                        "https://example.com",
+                        "script",
+                        ""
+                    )
+                    .unwrap()
                 )
-                .unwrap()
-            )
-            .should_block());
-        assert!(engine2
-            .check_network_request(
-                &Request::new(
-                    "https://googlesyndication.com/script.js",
-                    "https://example.com",
-                    "script",
-                    ""
+                .should_block()
+        );
+        assert!(
+            engine2
+                .check_network_request(
+                    &Request::new(
+                        "https://googlesyndication.com/script.js",
+                        "https://example.com",
+                        "script",
+                        ""
+                    )
+                    .unwrap()
                 )
-                .unwrap()
-            )
-            .should_block());
-        assert!(!engine
-            .check_network_request(
-                &Request::new(
-                    "https://googleayndication.com/script.js",
-                    "https://example.com",
-                    "script",
-                    ""
+                .should_block()
+        );
+        assert!(
+            !engine
+                .check_network_request(
+                    &Request::new(
+                        "https://googleayndication.com/script.js",
+                        "https://example.com",
+                        "script",
+                        ""
+                    )
+                    .unwrap()
                 )
-                .unwrap()
-            )
-            .should_block());
-        assert!(!engine2
-            .check_network_request(
-                &Request::new(
-                    "https://googleayndication.com/script.js",
-                    "https://example.com",
-                    "script",
-                    ""
+                .should_block()
+        );
+        assert!(
+            !engine2
+                .check_network_request(
+                    &Request::new(
+                        "https://googleayndication.com/script.js",
+                        "https://example.com",
+                        "script",
+                        ""
+                    )
+                    .unwrap()
                 )
-                .unwrap()
-            )
-            .should_block());
+                .should_block()
+        );
 
-        assert!(!engine
-            .check_network_request(
-                &Request::new(
-                    "https://googlesyndication.ca/script.js",
-                    "https://example.com",
-                    "script",
-                    ""
+        assert!(
+            !engine
+                .check_network_request(
+                    &Request::new(
+                        "https://googlesyndication.ca/script.js",
+                        "https://example.com",
+                        "script",
+                        ""
+                    )
+                    .unwrap()
                 )
-                .unwrap()
-            )
-            .should_block());
-        assert!(!engine2
-            .check_network_request(
-                &Request::new(
-                    "https://googlesyndication.ca/script.js",
-                    "https://example.com",
-                    "script",
-                    ""
+                .should_block()
+        );
+        assert!(
+            !engine2
+                .check_network_request(
+                    &Request::new(
+                        "https://googlesyndication.ca/script.js",
+                        "https://example.com",
+                        "script",
+                        ""
+                    )
+                    .unwrap()
                 )
-                .unwrap()
-            )
-            .should_block());
+                .should_block()
+        );
     }
 
     #[test]

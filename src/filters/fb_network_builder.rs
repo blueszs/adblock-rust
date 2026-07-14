@@ -14,7 +14,7 @@ use crate::filters::network::NetworkFilterMaskHelper;
 use crate::flatbuffers::containers::flat_multimap::FlatMultiMapBuilder;
 use crate::flatbuffers::containers::flat_serialize::{FlatBuilder, FlatSerialize};
 use crate::optimizer;
-use crate::utils::{to_short_hash, Hash, ShortHash};
+use crate::utils::{Hash, ShortHash, to_short_hash};
 
 use super::flat::fb;
 
