@@ -28,7 +28,6 @@ pub enum DeserializationError {
     BadChecksum,
     VersionMismatch(u8),
     FlatBufferParsingError(flatbuffers::InvalidFlatbuffer),
-    ValidationError,
 }
 
 pub(crate) fn serialize_dat_file(data: &[u8]) -> Vec<u8> {
