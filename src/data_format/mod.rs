@@ -11,6 +11,8 @@
 //! 3. seahash of the data (8 bytes)
 //! 4. data (the rest of the file)
 
+use thiserror::Error;
+
 /// Newer formats start with this magic byte sequence.
 /// Calculated as the leading 4 bytes of `echo -n 'brave/adblock-rust' | sha512sum`.
 const ADBLOCK_RUST_DAT_MAGIC: [u8; 4] = [0xd1, 0xd9, 0x3a, 0xaf];
@@ -23,17 +25,21 @@ const ADBLOCK_RUST_DAT_VERSION: u8 = 5;
 const HEADER_PREFIX_LENGTH: usize = 4 + 1 + 8;
 
 /// Failure cases for deserialization of the [crate::Engine].
-#[derive(Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq)]
 pub enum DeserializationError {
     /// The serialized buffer is missing the expected header bytes, including a fixed 4-byte
     /// sequence, version number, and checksum.
+    #[error("bad header")]
     BadHeader,
     /// The header's recorded checksum did not match the data itself.
+    #[error("bad checksum")]
     BadChecksum { expected: [u8; 8], actual: [u8; 8] },
     /// The buffer was serialized from a previous, incompatible version of this crate. It should be
     /// regenerated from list text instead.
+    #[error("version mismatch")]
     VersionMismatch(u8),
     /// The serialized data payload was not a valid flatbuffer format.
+    #[error("flatbuffer parsing error")]
     FlatBufferParsingError(flatbuffers::InvalidFlatbuffer),
 }
 
