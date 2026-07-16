@@ -222,38 +222,28 @@ impl Request {
         request_type: &str,
         method: &str,
     ) -> Result<Request, RequestError> {
-        if let Some(parsed_url) = url_parser::parse_url(url) {
-            let parsed_method = method.parse::<RequestMethod>().ok();
-            if let Some(parsed_source) = url_parser::parse_url(source_url) {
-                let source_domain = parsed_source.domain();
+        let parsed_url = url_parser::parse_url(url).ok_or(RequestError::HostnameParseError)?;
+        let parsed_method = method.parse::<RequestMethod>().ok();
 
-                let third_party = source_domain != parsed_url.domain();
+        let parsed_source = url_parser::parse_url(source_url);
+        let (source_domain, third_party) = match &parsed_source {
+            Some(parsed_source) => (
+                parsed_source.hostname(),
+                parsed_source.domain() != parsed_url.domain(),
+            ),
+            None => ("", true),
+        };
 
-                Ok(Request::from_detailed_parameters(
-                    request_type,
-                    &parsed_url.url,
-                    parsed_url.schema(),
-                    parsed_url.hostname(),
-                    parsed_source.hostname(),
-                    third_party,
-                    url.to_string(),
-                    parsed_method,
-                ))
-            } else {
-                Ok(Request::from_detailed_parameters(
-                    request_type,
-                    &parsed_url.url,
-                    parsed_url.schema(),
-                    parsed_url.hostname(),
-                    "",
-                    true,
-                    url.to_string(),
-                    parsed_method,
-                ))
-            }
-        } else {
-            Err(RequestError::HostnameParseError)
-        }
+        Ok(Request::from_detailed_parameters(
+            request_type,
+            &parsed_url.url,
+            parsed_url.schema(),
+            parsed_url.hostname(),
+            source_domain,
+            third_party,
+            url.to_string(),
+            parsed_method,
+        ))
     }
 
     /// If you're building a [`Request`] in a context that already has access to parsed
