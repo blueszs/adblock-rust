@@ -25,7 +25,7 @@ const HEADER_PREFIX_LENGTH: usize = 4 + 1 + 8;
 #[derive(Debug, PartialEq)]
 pub enum DeserializationError {
     BadHeader,
-    BadChecksum,
+    BadChecksum { expected: [u8; 8], actual: [u8; 8] },
     VersionMismatch(u8),
     FlatBufferParsingError(flatbuffers::InvalidFlatbuffer),
 }
@@ -55,13 +55,14 @@ pub(crate) fn deserialize_dat_file(serialized: &[u8]) -> Result<&[u8], Deseriali
 
     // Check the hash to ensure the data isn't corrupted.
     let expected_hash = &serialized[(ADBLOCK_RUST_DAT_MAGIC.len() + 1)..HEADER_PREFIX_LENGTH];
-    if expected_hash != seahash::hash(data).to_le_bytes() {
-        println!(
-            "Expected hash: {:?}, actual hash: {:?}",
-            expected_hash,
-            seahash::hash(data).to_le_bytes()
-        );
-        return Err(DeserializationError::BadChecksum);
+    debug_assert_eq!(HEADER_PREFIX_LENGTH - (ADBLOCK_RUST_DAT_MAGIC.len() + 1), 8);
+    let actual_hash = seahash::hash(data).to_le_bytes();
+    if expected_hash != actual_hash {
+        return Err(DeserializationError::BadChecksum {
+            // Unwrap safety: see debug_assert_eq above
+            expected: expected_hash.try_into().unwrap(),
+            actual: actual_hash,
+        });
     }
     Ok(data)
 }
@@ -97,9 +98,9 @@ mod tests {
         let serialized = serialize_dat_file(data);
         let mut corrupted_serialized = serialized.clone();
         corrupted_serialized[HEADER_PREFIX_LENGTH] = 0;
-        assert_eq!(
-            Err(DeserializationError::BadChecksum),
-            deserialize_dat_file(&corrupted_serialized)
+        std::assert_matches!(
+            deserialize_dat_file(&corrupted_serialized),
+            Err(DeserializationError::BadChecksum { .. })
         );
     }
 }
