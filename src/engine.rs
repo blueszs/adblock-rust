@@ -258,6 +258,12 @@ impl Engine {
         self.blocker.check_exceptions(request)
     }
 
+    /// Like [Self::check_network_request], but with extra options.
+    ///
+    /// - `previously_matched_rule` can assume the existence of a blocking rule, which would skip
+    ///   checking for other blocking rules and immediately look for matching exceptions.
+    /// - `force_check_exceptions` can force the engine to _always_ look for and report matching
+    ///   exceptions, even if no blocking rule exists.
     pub fn check_network_request_subset(
         &self,
         request: &Request,
