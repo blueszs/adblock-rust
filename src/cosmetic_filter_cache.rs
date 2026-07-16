@@ -35,7 +35,7 @@ pub struct UrlSpecificResources {
     /// Set of JSON-encoded procedural filters or filters with an action.
     pub procedural_actions: HashSet<String>,
     /// `exceptions` is a set of any class or id CSS selectors that should not have generic rules
-    /// applied. In practice, these should be passed to `class_id_stylesheet` and not used
+    /// applied. In practice, these should be passed to `hidden_class_id_selectors` and not used
     /// otherwise.
     pub exceptions: HashSet<String>,
     /// `injected_script` is the Javascript code for any scriptlets that should be injected into
