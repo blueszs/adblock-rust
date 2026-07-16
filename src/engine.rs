@@ -3,14 +3,14 @@
 use crate::blocker::{Blocker, BlockerResult};
 use crate::cosmetic_filter_cache::{CosmeticFilterCache, UrlSpecificResources};
 use crate::cosmetic_filter_cache_builder::CosmeticFilterCacheBuilder;
-use crate::data_format::{deserialize_dat_file, serialize_dat_file, DeserializationError};
+use crate::data_format::{DeserializationError, deserialize_dat_file, serialize_dat_file};
 use crate::filters::fb_builder::EngineFlatBuilder;
 use crate::filters::fb_network_builder::{NetworkFilterDebugData, NetworkRulesBuilder};
 use crate::filters::filter_data_context::{FilterDataContext, FilterDataContextRef};
 use crate::filters::flatbuffer_generated::fb;
 use crate::flatbuffers::containers::flat_serialize::{FlatBuilder, FlatSerialize};
 use crate::flatbuffers::unsafe_tools::VerifiedFlatbufferMemory;
-use crate::lists::{parse_filter, FilterSet, ParseOptions, ParsedLine};
+use crate::lists::{FilterSet, ParseOptions, ParsedLine, parse_filter};
 use crate::regex_manager::RegexManagerDiscardPolicy;
 use crate::request::Request;
 use crate::resources::{Resource, ResourceStorage, ResourceStorageBackend};

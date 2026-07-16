@@ -1,6 +1,6 @@
+use adblock::Engine;
 use adblock::lists::FilterSet;
 use adblock::request::Request;
-use adblock::Engine;
 
 #[allow(unused_imports)]
 use std::collections::HashMap;

@@ -3,7 +3,7 @@ mod tests {
     use super::super::*;
     use crate::resources::MimeType;
     use crate::{
-        lists::FilterFormat, lists::ParseOptions, test_utils::rules_from_lists, FilterSet,
+        FilterSet, lists::FilterFormat, lists::ParseOptions, test_utils::rules_from_lists,
     };
     use base64::{engine::Engine as _, prelude::BASE64_STANDARD};
     use seahash::hash;
@@ -321,79 +321,96 @@ mod tests {
 
         let engine = Engine::new_with_list_text(filters.join("\n"));
 
-        assert!(engine
-            .check_network_request(
-                &Request::new("https://example.com", "https://example.com", "document", "")
-                    .unwrap()
-            )
-            .should_block());
-        assert!(!engine
-            .check_network_request(
-                &Request::new("https://example.com", "https://example.com", "script", "").unwrap()
-            )
-            .should_block());
-        assert!(engine
-            .check_network_request(
-                &Request::new(
-                    "https://sub.example.com",
-                    "https://sub.example.com",
-                    "document",
-                    ""
+        assert!(
+            engine
+                .check_network_request(
+                    &Request::new("https://example.com", "https://example.com", "document", "")
+                        .unwrap()
                 )
-                .unwrap()
-            )
-            .exception
-            .is_some());
+                .should_block()
+        );
+        assert!(
+            !engine
+                .check_network_request(
+                    &Request::new("https://example.com", "https://example.com", "script", "")
+                        .unwrap()
+                )
+                .should_block()
+        );
+        assert!(
+            engine
+                .check_network_request(
+                    &Request::new(
+                        "https://sub.example.com",
+                        "https://sub.example.com",
+                        "document",
+                        ""
+                    )
+                    .unwrap()
+                )
+                .exception
+                .is_some()
+        );
     }
 
     #[test]
     fn implicit_all() {
         {
             let engine = Engine::new_with_list_text("||example.com^");
-            assert!(engine
-                .check_network_request(
-                    &Request::new("https://example.com", "https://example.com", "document", "")
-                        .unwrap()
-                )
-                .should_block());
+            assert!(
+                engine
+                    .check_network_request(
+                        &Request::new("https://example.com", "https://example.com", "document", "")
+                            .unwrap()
+                    )
+                    .should_block()
+            );
         }
         {
             let engine = Engine::new_with_list_text("||example.com^$first-party");
-            assert!(engine
-                .check_network_request(
-                    &Request::new("https://example.com", "https://example.com", "document", "")
-                        .unwrap()
-                )
-                .should_block());
+            assert!(
+                engine
+                    .check_network_request(
+                        &Request::new("https://example.com", "https://example.com", "document", "")
+                            .unwrap()
+                    )
+                    .should_block()
+            );
         }
         {
             let engine = Engine::new_with_list_text("||example.com^$script");
-            assert!(!engine
-                .check_network_request(
-                    &Request::new("https://example.com", "https://example.com", "document", "")
-                        .unwrap()
-                )
-                .should_block());
+            assert!(
+                !engine
+                    .check_network_request(
+                        &Request::new("https://example.com", "https://example.com", "document", "")
+                            .unwrap()
+                    )
+                    .should_block()
+            );
         }
         {
             let engine = Engine::new_with_list_text("||example.com^$~script");
-            assert!(!engine
-                .check_network_request(
-                    &Request::new("https://example.com", "https://example.com", "document", "")
-                        .unwrap()
-                )
-                .should_block());
+            assert!(
+                !engine
+                    .check_network_request(
+                        &Request::new("https://example.com", "https://example.com", "document", "")
+                            .unwrap()
+                    )
+                    .should_block()
+            );
         }
         {
             let engine = Engine::new_with_list_text(
                 ["||example.com^$document", "@@||example.com^$generichide"].join("\n"),
             );
-            assert!(engine
-                .check_network_request(
-                    &Request::new("https://example.com", "https://example.com", "document", "")
-                        .unwrap()
-                )
-                .should_block());
+            assert!(
+                engine
+                    .check_network_request(
+                        &Request::new("https://example.com", "https://example.com", "document", "")
+                            .unwrap()
+                    )
+                    .should_block()
+            );
         }
         {
             let mut filter_set = FilterSet::new(false);
@@ -405,40 +422,46 @@ mod tests {
                 },
             );
             let engine = Engine::new_with_filter_set(filter_set);
-            assert!(engine
-                .check_network_request(
-                    &Request::new("https://example.com", "https://example.com", "document", "")
-                        .unwrap()
-                )
-                .should_block());
+            assert!(
+                engine
+                    .check_network_request(
+                        &Request::new("https://example.com", "https://example.com", "document", "")
+                            .unwrap()
+                    )
+                    .should_block()
+            );
         }
         {
             let engine = Engine::new_with_list_text("||example.com/path");
-            assert!(!engine
-                .check_network_request(
-                    &Request::new(
-                        "https://example.com/path",
-                        "https://example.com/path",
-                        "document",
-                        ""
+            assert!(
+                !engine
+                    .check_network_request(
+                        &Request::new(
+                            "https://example.com/path",
+                            "https://example.com/path",
+                            "document",
+                            ""
+                        )
+                        .unwrap()
                     )
-                    .unwrap()
-                )
-                .should_block());
+                    .should_block()
+            );
         }
         {
             let engine = Engine::new_with_list_text("||example.com/path^");
-            assert!(!engine
-                .check_network_request(
-                    &Request::new(
-                        "https://example.com/path",
-                        "https://example.com/path",
-                        "document",
-                        ""
+            assert!(
+                !engine
+                    .check_network_request(
+                        &Request::new(
+                            "https://example.com/path",
+                            "https://example.com/path",
+                            "document",
+                            ""
+                        )
+                        .unwrap()
                     )
-                    .unwrap()
-                )
-                .should_block());
+                    .should_block()
+            );
         }
     }
 
@@ -452,17 +475,19 @@ mod tests {
             "font",
             "xmlhttprequest",
         ] {
-            assert!(engine
-                .check_network_request(
-                    &Request::new(
-                        "https://example.com",
-                        "https://rarvinzp.click",
-                        content_type,
-                        ""
+            assert!(
+                engine
+                    .check_network_request(
+                        &Request::new(
+                            "https://example.com",
+                            "https://rarvinzp.click",
+                            content_type,
+                            ""
+                        )
+                        .unwrap()
                     )
-                    .unwrap()
-                )
-                .should_block());
+                    .should_block()
+            );
         }
     }
 

@@ -133,8 +133,8 @@ impl CosmeticFilterCache {
 
     #[cfg(test)]
     pub fn from_rules(rules: impl IntoIterator<Item = impl AsRef<str>>) -> Self {
-        use crate::engine::Engine;
         use crate::FilterSet;
+        use crate::engine::Engine;
 
         let mut filter_set = FilterSet::new(false);
         filter_set.add_filters(rules, Default::default());

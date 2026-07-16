@@ -129,15 +129,17 @@ mod optimization_tests_pattern_group {
                 "/analytics-v1. <+> /v1/pixel? <+> /api/v1/stat? <+> /v1/ads/*"
             );
 
-            assert!(filter.matches_test(
-                &Request::new(
-                    "https://example.com/v1/pixel?",
-                    "https://my.leadpages.net",
-                    "",
-                    ""
+            assert!(
+                filter.matches_test(
+                    &Request::new(
+                        "https://example.com/v1/pixel?",
+                        "https://my.leadpages.net",
+                        "",
+                        ""
+                    )
+                    .unwrap()
                 )
-                .unwrap()
-            ));
+            );
 
             assert_eq!(skipped.len(), 1);
             let filter = skipped.first().unwrap();
@@ -146,15 +148,17 @@ mod optimization_tests_pattern_group {
                 "/analytics/v1/*$domain=~my.leadpages.net"
             );
 
-            assert!(filter.matches_test(
-                &Request::new(
-                    "https://example.com/analytics/v1/foobar",
-                    "https://foo.leadpages.net",
-                    "",
-                    ""
+            assert!(
+                filter.matches_test(
+                    &Request::new(
+                        "https://example.com/analytics/v1/foobar",
+                        "https://foo.leadpages.net",
+                        "",
+                        ""
+                    )
+                    .unwrap()
                 )
-                .unwrap()
-            ))
+            )
         }
     }
 
@@ -406,15 +410,17 @@ mod optimization_tests_pattern_group {
             "/analytics-v1. <+> /v1/pixel? <+> /api/v1/stat? <+> /v1/ads/*"
         );
 
-        assert!(filter.matches_test(
-            &Request::new(
-                "https://example.com/v1/pixel?",
-                "https://my.leadpages.net",
-                "",
-                ""
+        assert!(
+            filter.matches_test(
+                &Request::new(
+                    "https://example.com/v1/pixel?",
+                    "https://my.leadpages.net",
+                    "",
+                    ""
+                )
+                .unwrap()
             )
-            .unwrap()
-        ));
+        );
 
         assert_eq!(skipped.len(), 1);
         let filter = skipped.first().unwrap();
@@ -423,15 +429,17 @@ mod optimization_tests_pattern_group {
             "/analytics/v1/*$domain=~my.leadpages.net"
         );
 
-        assert!(filter.matches_test(
-            &Request::new(
-                "https://example.com/analytics/v1/foobar",
-                "https://foo.leadpages.net",
-                "",
-                ""
+        assert!(
+            filter.matches_test(
+                &Request::new(
+                    "https://example.com/analytics/v1/foobar",
+                    "https://foo.leadpages.net",
+                    "",
+                    ""
+                )
+                .unwrap()
             )
-            .unwrap()
-        ))
+        )
     }
 }
 
