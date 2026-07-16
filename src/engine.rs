@@ -42,8 +42,6 @@ use std::collections::HashSet;
 ///
 /// Use the [`Engine::check_network_request`] method to determine how to handle a network request.
 ///
-/// If you _only_ need network blocking, consider using a [`Blocker`] directly.
-///
 /// ### Cosmetic filtering
 ///
 /// Call [`Engine::url_cosmetic_resources`] to determine what actions should be taken to prepare a
