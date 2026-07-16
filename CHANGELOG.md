@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.13.1] - 2026-07-16
+
+### Fixed
+- Expose `adblock::engine::DeserializationError`
+
 ## [0.13.0] - 2026-07-09
 
 ### Added
