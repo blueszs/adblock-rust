@@ -27,7 +27,7 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 /// Contains cosmetic filter information intended to be used on a particular URL.
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
 pub struct UrlSpecificResources {
     /// `hide_selectors` is a set of any CSS selector on the page that should be hidden, i.e.
     /// styled as `{ display: none !important; }`.
@@ -49,13 +49,7 @@ pub struct UrlSpecificResources {
 
 impl UrlSpecificResources {
     pub fn empty() -> Self {
-        Self {
-            hide_selectors: HashSet::new(),
-            procedural_actions: HashSet::new(),
-            exceptions: HashSet::new(),
-            injected_script: String::new(),
-            generichide: false,
-        }
+        Self::default()
     }
 }
 
