@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.13.2] - 2026-07-18
+
+### Added
+- `Default` impl for `CosmeticFilterCache`
+
+### Changed
+- `Engine::set_regex_discard_policy` now takes `&self` instead of `&mut self`
+- Reduce allocation count for `Engine::hidden_class_id_selectors` calls
+
 ## [0.13.1] - 2026-07-16
 
 ### Fixed
