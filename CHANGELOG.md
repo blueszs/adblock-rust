@@ -3,7 +3,7 @@
 ## [0.13.2] - 2026-07-18
 
 ### Added
-- `Default` impl for `CosmeticFilterCache`
+- `Default` impl for `UrlSpecificResources`
 
 ### Changed
 - `Engine::set_regex_discard_policy` now takes `&self` instead of `&mut self`
