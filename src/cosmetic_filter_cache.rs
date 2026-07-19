@@ -174,10 +174,20 @@ impl CosmeticFilterCache {
             cosmetic_filters.complex_id_rules_values(),
         );
 
+        let mut scratch = String::new();
+
         classes.into_iter().for_each(|class| {
             let class = class.as_ref();
-            if simple_class_rules.contains(class) && !exceptions.contains(&format!(".{class}")) {
-                selectors.push(format!(".{class}"));
+
+            if simple_class_rules.contains(class) {
+                scratch.clear();
+                scratch.push('.');
+                scratch.push_str(class);
+                let selector = &scratch;
+
+                if !exceptions.contains(selector) {
+                    selectors.push(selector.to_string());
+                }
             }
             if let Some(values) = complex_class_rules.get(class) {
                 for sel in values.data() {
@@ -189,8 +199,16 @@ impl CosmeticFilterCache {
         });
         ids.into_iter().for_each(|id| {
             let id = id.as_ref();
-            if simple_id_rules.contains(id) && !exceptions.contains(&format!("#{id}")) {
-                selectors.push(format!("#{id}"));
+
+            if simple_id_rules.contains(id) {
+                scratch.clear();
+                scratch.push('#');
+                scratch.push_str(id);
+                let selector = &scratch;
+
+                if !exceptions.contains(selector) {
+                    selectors.push(selector.to_string());
+                }
             }
             if let Some(values) = complex_id_rules.get(id) {
                 for sel in values.data() {
