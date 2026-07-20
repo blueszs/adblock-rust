@@ -97,12 +97,6 @@ fn cpt_match_type(cpt: &str) -> RequestType {
         "sub_frame" | "subdocument" => RequestType::Subdocument,
         "websocket" => RequestType::Websocket,
         "xhr" | "xmlhttprequest" => RequestType::Xmlhttprequest,
-        "other" => RequestType::Other,
-        "speculative" => RequestType::Other,
-        "web_manifest" => RequestType::Other,
-        "xbl" => RequestType::Other,
-        "xml_dtd" => RequestType::Other,
-        "xslt" => RequestType::Other,
         _ => RequestType::Other,
     }
 }
